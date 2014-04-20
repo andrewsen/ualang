@@ -36,11 +36,6 @@
 bool tracer(Runtime *rt, Module* m);
 
 int main (int argc, const char* argv[]) {
-    cout << "debug\n";
-#ifdef WIN32
-    SetConsoleCP(1251);
-    SetConsoleOutputCP(1251);
-#endif
 //#ifndef _DEBUG_
 
     //auto v = split("Hello|, |Wor|ld|!", '|', false);
