@@ -82,10 +82,7 @@ Runtime *Runtime::Create(int argc, const char* argv[])
     if(cur != "") cur += "/modules/:";
     setenv("SVM_PATH", (p + work_dir + "modules/:" + "/usr/share/svm/modules:" + cur).c_str(), 0);
 
-    //rt.modules.clear();
-    //rt.modules.push_back(Module(argv[1], &rt));
-    //rt.entry = &rt.modules[0];
-    //rt.entry->Load();
+
     rt->entry = Module(argv[1], rt, true);
     rt->entry.Load();
 
@@ -106,6 +103,7 @@ string getCurrentDir(string fullName) {
 void Runtime::Start()
 {
     start_time2 = time(nullptr);
+
     if(argc >= 3)
         this->entry.Run(argv[1] + string(" ") + argv[2]);
     else if(argc == 2)
