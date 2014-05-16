@@ -7,7 +7,7 @@
     <ProjectGuid>{EDD0B6C7-69A2-4C45-850D-D6CAE103F69E}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Translator</RootNamespace>
+    <RootNamespace>Compiler</RootNamespace>
     <AssemblyName>Translator</AssemblyName>
     <FileAlignment>512</FileAlignment>
     <ProductVersion>12.0.0</ProductVersion>
