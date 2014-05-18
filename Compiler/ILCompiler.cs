@@ -136,12 +136,13 @@ namespace Translator
             for (var i = 0; i < global.Locals.Count; ++i)
             {
                 var g = global.Locals[i].Var;
-                sw.Write("  " + i + " : " + getTypeString(g.type) + " -> ");
-                sw.Write((g.isPublic ? "public " : "private "));
+                sw.Write("  " + i + " : " + getTypeString(g.type));
                 if (g.isPublic)
-                    sw.WriteLine(g.name.Remove(0, VarType.FIELD_PREFIX.Length));
-                else
-                    sw.WriteLine("");
+                {
+                    sw.Write(" -> ");
+                    sw.Write(g.name.Remove(0, VarType.FIELD_PREFIX.Length));
+                }
+                sw.WriteLine("");
                 //if (g.val != null)
                 //  sw.WriteLine (" = " + g.val.ToString ());
                 //else
@@ -156,7 +157,9 @@ namespace Translator
                 for (var i = 0; i < f.argTypes.Count; ++i)
                 {
                     var v = f.argTypes[i];
-                    sw.Write(v.type.ToString().ToLower() + " " + VarType.ARG_PREFIX + i + " ");
+                    sw.Write(v.type.ToString().ToLower());
+                    if (i != f.argTypes.Count - 1)
+                        sw.Write(", ");
                 }
                 sw.WriteLine(")\n{");
 
@@ -166,7 +169,7 @@ namespace Translator
 
             sw.Close();
         }
-
+   
         void writeBlock(CodeBlock mainBlock, StreamWriter sw)
         {
             foreach (var loc in mainBlock.Locals)
