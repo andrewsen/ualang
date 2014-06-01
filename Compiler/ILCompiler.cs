@@ -121,7 +121,7 @@ namespace Translator
             foreach(var obj in directives) {
                 if (obj is Import)
                 {
-                    sw.WriteLine(".use " + (obj as Import).Module);
+                    sw.WriteLine(".import " + (obj as Import).Module);
                 }
             }
             
@@ -132,11 +132,11 @@ namespace Translator
 
         public void Compile()
         {
-            sw.WriteLine("globals [");
+            sw.WriteLine(".globals");
             for (var i = 0; i < global.Locals.Count; ++i)
             {
                 var g = global.Locals[i].Var;
-                sw.Write("  " + i + " : " + getTypeString(g.type));
+                sw.Write(i + " : " + getTypeString(g.type));
                 if (g.isPublic)
                 {
                     sw.Write(" -> ");
@@ -148,7 +148,7 @@ namespace Translator
                 //else
                 //  sw.WriteLine ("");
             }
-            sw.WriteLine("]");
+            sw.WriteLine(".end-globals");
 
             foreach (var f in funcs)
             {
