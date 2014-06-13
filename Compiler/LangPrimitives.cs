@@ -214,14 +214,21 @@ namespace CompilerClasses
 		public const string LOCAL_PREFIX = "_@local_";
 		public const string FIELD_PREFIX = "_@field_";
 		public const string ARG_PREFIX = "_@arg_";
-		public const string NULL_PREFIX = "__@NULL@__";
+        public const string NULL_PREFIX = "__@NULL@__";
 
-		public VarType(string name, DataTypes t, StructType s = null)
-			: base(t, s)
-		{
-			this.name = name;
-			val = null;
-		}
+        public VarType(string name, DataTypes t, StructType s = null)
+            : base(t, s)
+        {
+            this.name = name;
+            val = null;
+        }
+
+        public VarType(DataTypes t)
+            : base(t, null)
+        {
+            this.name = "";
+            val = null;
+        }
 
 		internal bool isDigitType()
 		{
@@ -278,18 +285,29 @@ namespace CompilerClasses
 	class Function : VarType
 	{
 		public List<VarType> argTypes;
-		public Dictionary<int, VarType> locals;
-		public string body;
+        public Dictionary<int, VarType> locals;
+        public string body;
+        public string module = "";
 		public CodeBlock mainBlock;
 		public int tempVarCounter = 0;
         public Stack<Tuple<string, string>> cycleStack;
 
-		public Function(string sign, DataTypes t, StructType s = null)
-			: base(sign, t, s)
-		{
-			argTypes = new List<VarType>();
-			locals = new Dictionary<int, VarType> ();
-			body = "";
+        public Function(string sign, DataTypes t, StructType s = null)
+            : base(sign, t, s)
+        {
+            argTypes = new List<VarType>();
+            locals = new Dictionary<int, VarType> ();
+            body = "";
+            cycleStack = new Stack<Tuple<string, string>>();
+        }
+
+        public Function(string module, string sign, DataTypes ret, List<VarType> args)
+            : base(sign, ret, null)
+        {
+            this.module = module;
+            argTypes = args;
+            locals = new Dictionary<int, VarType> ();
+            body = "";
             cycleStack = new Stack<Tuple<string, string>>();
         }
 

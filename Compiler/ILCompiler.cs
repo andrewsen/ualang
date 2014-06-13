@@ -64,11 +64,32 @@ namespace Translator
         NEWLOC,
         FREELOC,
         LDLOC,
+        LDLOC_0,
+        LDLOC_1,
+        LDLOC_2,
         STLOC,
+        STLOC_0,
+        STLOC_1,
+        STLOC_2,
         LDARG,
+        LDARG_0,
+        LDARG_1,
+        LDARG_2,
         STARG,
+        STARG_0,
+        STARG_1,
+        STARG_2,
         LDFLD,
+        LDFLD_0,
+        LDFLD_1,
+        LDFLD_2,
         STFLD,
+        STFLD_0,
+        STFLD_1,
+        STFLD_2,
+        LD_0,
+        LD_1,
+        LD_2,
         LD_STR,
         LD_UI8,
         LD_I16,
@@ -77,7 +98,8 @@ namespace Translator
         LD_I64,
         LD_UI64,
         LD_F,
-        LD_BOOL,
+        LD_TRUE,
+        LD_FALSE,
         LD_NULL,
         AND,
         OR,
@@ -152,6 +174,7 @@ namespace Translator
 
             foreach (var f in funcs)
             {
+                sw.WriteLine("");
                 currentFun = f;
                 sw.Write((f.isPublic ? "public" : "private") + " " + f.type.ToString().ToLower() + " " + f.name + "(");
                 for (var i = 0; i < f.argTypes.Count; ++i)
@@ -295,27 +318,38 @@ namespace Translator
                         return;
 
                     if (rval.StringRep.StartsWith(VarType.FIELD_PREFIX))
-                        writeOpCode(ILOpCodes.LDFLD, VarType.GetVarID(rval.StringRep));
+                        writeShortcut(VarType.GetVarID(rval.StringRep), ILOpCodes.LDFLD);
+                        //writeOpCode(ILOpCodes.LDFLD, VarType.GetVarID(rval.StringRep));
                     else if (rval.StringRep.StartsWith(VarType.ARG_PREFIX))
-                        writeOpCode(ILOpCodes.LDARG, VarType.GetVarID(rval.StringRep));
+                        writeShortcut(VarType.GetVarID(rval.StringRep), ILOpCodes.LDARG);
+                        //writeOpCode(ILOpCodes.LDARG, VarType.GetVarID(rval.StringRep));
                     else
-                        writeOpCode(ILOpCodes.LDLOC, VarType.GetVarID(rval.StringRep));
+                        writeShortcut(VarType.GetVarID(rval.StringRep), ILOpCodes.LDLOC);
+                        //writeOpCode(ILOpCodes.LDLOC, VarType.GetVarID(rval.StringRep));
                 }
                 else if (rval.Type == TokType.Double) 
                     writeOpCode(ILOpCodes.LD_F, rval.StringRep);
-                else if (rval.Type == TokType.Int) 
-                    writeOpCode(ILOpCodes.LD_I32, rval.StringRep);
+                else if (rval.Type == TokType.Int)
+                    writeShortcut(rval.StringRep, ILOpCodes.LD_I32, ILOpCodes.LD_0, ILOpCodes.LD_1, ILOpCodes.LD_2);
                 else if (rval.Type == TokType.String) 
                     writeOpCode(ILOpCodes.LD_STR, rval.StringRep);
-                else if (rval.Type == TokType.Boolean) 
-                    writeOpCode(ILOpCodes.LD_BOOL, rval.StringRep);
+                else if (rval.Type == TokType.Boolean)
+                {
+                    if(rval.StringRep == "true")
+                        writeOpCode(ILOpCodes.LD_TRUE);
+                    else
+                        writeOpCode(ILOpCodes.LD_FALSE);
+                }
 
                 if (lval.StringRep.StartsWith(VarType.FIELD_PREFIX))
-                    writeOpCode(ILOpCodes.STFLD, VarType.GetVarID(lval.StringRep));
+                    writeShortcut(VarType.GetVarID(lval.StringRep), ILOpCodes.STFLD);
+                    //writeOpCode(ILOpCodes.STFLD, VarType.GetVarID(lval.StringRep));
                 else if (lval.StringRep.StartsWith(VarType.ARG_PREFIX))
-                    writeOpCode(ILOpCodes.STARG, VarType.GetVarID(lval.StringRep));
+                    writeShortcut(VarType.GetVarID(lval.StringRep), ILOpCodes.STARG);
+                    //writeOpCode(ILOpCodes.STARG, VarType.GetVarID(lval.StringRep));
                 else
-                    writeOpCode(ILOpCodes.STLOC, VarType.GetVarID(lval.StringRep));
+                    writeShortcut(VarType.GetVarID(lval.StringRep), ILOpCodes.STLOC);
+                    //writeOpCode(ILOpCodes.STLOC, VarType.GetVarID(lval.StringRep));
             }
             else if (op.StringRep == "_@call@_" || op.StringRep == "_@call_noreturn@_")
             {
@@ -431,20 +465,25 @@ namespace Translator
             if (val.Type == TokType.Variable)
             {
                 if (val.StringRep.StartsWith(VarType.FIELD_PREFIX))
-                    writeOpCode(ILOpCodes.LDFLD, VarType.GetVarID(val.StringRep));
+                    writeShortcut(VarType.GetVarID(val.StringRep), ILOpCodes.LDFLD);
                 else if (val.StringRep.StartsWith(VarType.ARG_PREFIX))
-                    writeOpCode(ILOpCodes.LDARG, VarType.GetVarID(val.StringRep));
+                    writeShortcut(VarType.GetVarID(val.StringRep), ILOpCodes.LDARG);
                 else
-                    writeOpCode(ILOpCodes.LDLOC, VarType.GetVarID(val.StringRep));
+                    writeShortcut(VarType.GetVarID(val.StringRep), ILOpCodes.LDLOC);
             }
             else if (val.Type == TokType.Double) 
                 writeOpCode(ILOpCodes.LD_F, val.StringRep);
             else if (val.Type == TokType.Int) 
-                writeOpCode(ILOpCodes.LD_I32, val.StringRep);
+                writeShortcut(val.StringRep, ILOpCodes.LD_I32, ILOpCodes.LD_0, ILOpCodes.LD_1, ILOpCodes.LD_2);
             else if (val.Type == TokType.String) 
                 writeOpCode(ILOpCodes.LD_STR, val.StringRep);
             else if (val.Type == TokType.Boolean) 
-                writeOpCode(ILOpCodes.LD_BOOL, val.StringRep);
+            {
+                if(val.StringRep == "true")
+                    writeOpCode(ILOpCodes.LD_TRUE);
+                else
+                    writeOpCode(ILOpCodes.LD_FALSE);
+            }
         }
 
         ILOpCodes getOpCode(string op, DataTypes t1, DataTypes t2 = DataTypes.Void)
@@ -550,6 +589,32 @@ namespace Translator
                 default:
                     return type.ToString().ToLower();
             }
+        }
+        
+        void writeShortcut(string rep, ILOpCodes op) {
+            writeShortcut(int.Parse(rep), op);
+        }
+
+        void writeShortcut(int rep, ILOpCodes op) {
+            if (rep >= 0 && rep <= 2)
+                sw.WriteLine("\t"+op.ToString().ToLower() + "_" + rep);
+            else
+                writeOpCode(op, rep);
+        }
+
+        void writeShortcut(string rep, ILOpCodes op, ILOpCodes short0, ILOpCodes short1, ILOpCodes short2) {
+            writeShortcut(int.Parse(rep), op, short0, short1, short2);
+        }
+
+        void writeShortcut(int rep, ILOpCodes op, ILOpCodes short0, ILOpCodes short1, ILOpCodes short2) {
+            if (rep == 0)
+                writeOpCode(short0);
+            else if (rep == 1)
+                writeOpCode(short1);
+            else if (rep == 2)                    
+                writeOpCode(short2);
+            else
+                writeOpCode(op, rep);
         }
     }
 }

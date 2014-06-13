@@ -39,6 +39,7 @@ namespace Translator
 
         TokenStream tokens;
         List<Function> funcs = new List<Function>();
+        List<Function> imported = new List<Function>();
         CodeBlock globalVars = new CodeBlock();
         OpPriority priorities = new OpPriority();
         //ArrayList imports = new ArrayList();
@@ -64,6 +65,8 @@ namespace Translator
 
         public Compiler(string _in, string _out)
         {
+            imported.Add(new Function("::vm.internal", "print", DataTypes.Void, new List<VarType> {new VarType(DataTypes.String)}));
+            imported.Add(new Function("::vm.internal", "read", DataTypes.String, new List<VarType> {}));
             //funcs.Add(new Function("fun", DataTypes.Null));
             //funcs.Add(new Function("exp", DataTypes.Null));
             //funcs.Add(new Function("func", DataTypes.Null));
@@ -92,6 +95,7 @@ namespace Translator
         public void Compile()
         {
             compileGlobal();
+            //Console.ReadKey();
             foreach (var fun in funcs)
             {
                 currentFun = fun;
@@ -440,12 +444,13 @@ namespace Translator
                 {
                     bool isf = false;
                     //Function func = null;
-                    if (funcs.Any(f => f.name == infix.ToString()))
+                    if (funcs.Any(f => f.name == infix.ToString()) || imported.Any(f => f.name == infix.ToString()))
                     {
                         isf = isFun = true;
                         //func = f;
                         ++fcount;
                     }
+                    //else if(); //TODO: Modules are near here...
                     if (isf)
                     {
                         //"1" - 1+1
@@ -655,13 +660,18 @@ namespace Translator
                     }
 
                     Function f = getFunctionByArgList(op.Remove(op.LastIndexOf("@")), argTypes);
+                    var funName = f.name;
+                    if (f.module != "")
+                    {
+                        funName = "["+f.module+"] " + f.name;
+                    }
                     var taccode = new BasicPrimitive();
                     if (f.type != DataTypes.Void && rpn.Count != 1)
                     {
                         Token retval = new Token("t" + currentFun.tempVarCounter, TokType.TempVar, f.type);
                         ++currentFun.tempVarCounter;
 
-                        taccode.Expr = retval.StringRep + " = _@call@_ " + f.name + " (";
+                        taccode.Expr = retval.StringRep + " = _@call@_ " + funName + " (";
                         //taccode.Type = retval.Type;
                         taccode.Polish.Add(retval);
                         taccode.Polish.Add(new Token ("=", TokType.OperatorEq));
@@ -670,18 +680,18 @@ namespace Translator
                     }
                     else if (f.type != DataTypes.Void && rpn.Count == 1)
                     {
-                        taccode.Expr = "_@call_noreturn@_" + f.name + " (";
+                        taccode.Expr = "_@call_noreturn@_" + funName + " (";
                         taccode.mainOpIdx = 0;
                         taccode.Polish.Add(new Token ("_@call_noreturn@_", TokType.Keyword));
                     }
                     else
                     {
-                        taccode.Expr = "_@call@_ " + f.name + " (";
+                        taccode.Expr = "_@call@_ " + funName + " (";
                         taccode.mainOpIdx = 0;
                         taccode.Polish.Add(new Token ("_@call@_", TokType.Keyword));
                     }
                     //taccode.Polish.Add(new Token { StringRep = "_@call@_", Type = TokType.Keyword });
-                    taccode.Polish.Add(new Token (f.name + "("+f.ArgsFromList()+")", TokType.Function));					
+                    taccode.Polish.Add(new Token (funName + "("+f.ArgsFromList()+")", TokType.Function));					
 
                     foreach (var a in f.argTypes)
                     {
@@ -1033,6 +1043,11 @@ namespace Translator
         {
             List<Function> overloaded = new List<Function>();
             foreach (var f in funcs)
+            {
+                if (f.name == name && f.argTypes.Count == argTypes.Count)
+                    overloaded.Add(f);
+            }
+            foreach (var f in imported)
             {
                 if (f.name == name && f.argTypes.Count == argTypes.Count)
                     overloaded.Add(f);
