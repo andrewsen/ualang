@@ -114,6 +114,10 @@ namespace Translator
         SHL,
         SHR,
         POP,
+        GT,
+        GTE,
+        LT,
+        LTE,
         SIZEOF,
         TYPEOF,
         RET,
@@ -159,11 +163,11 @@ namespace Translator
             {
                 var g = global.Locals[i].Var;
                 sw.Write(i + " : " + getTypeString(g.type));
-                if (g.isPublic)
-                {
-                    sw.Write(" -> ");
-                    sw.Write(g.name.Remove(0, VarType.FIELD_PREFIX.Length));
-                }
+
+                sw.Write(" -> ");
+                sw.Write(g.isPublic ? "public " : "private ");
+                sw.Write(g.name.Remove(0, VarType.FIELD_PREFIX.Length));
+            
                 sw.WriteLine("");
                 //if (g.val != null)
                 //  sw.WriteLine (" = " + g.val.ToString ());
@@ -176,15 +180,25 @@ namespace Translator
             {
                 sw.WriteLine("");
                 currentFun = f;
-                sw.Write((f.isPublic ? "public" : "private") + " " + f.type.ToString().ToLower() + " " + f.name + "(");
+                sw.Write((f.isPublic ? "public" : "private") + " " + getTypeString(f.type) + " " + f.name + "(");
                 for (var i = 0; i < f.argTypes.Count; ++i)
                 {
                     var v = f.argTypes[i];
-                    sw.Write(v.type.ToString().ToLower());
+                    sw.Write(getTypeString(v.type));
                     if (i != f.argTypes.Count - 1)
                         sw.Write(", ");
                 }
-                sw.WriteLine(")\n{");
+                sw.WriteLine(")");
+                if (f.locals.Count != 0)
+                {
+                    sw.WriteLine("\t.locals");
+                    for (int lid = 0; lid < f.locals.Count; ++lid)
+                    {
+                        sw.WriteLine("\t" + lid + " : " + getTypeString(f.locals[lid].type));
+                    }
+                    sw.WriteLine("\t.end-locals");
+                }
+                sw.WriteLine("{");
 
                 writeBlock(f.mainBlock, sw);
                 sw.WriteLine("}");
@@ -195,10 +209,10 @@ namespace Translator
    
         void writeBlock(CodeBlock mainBlock, StreamWriter sw)
         {
-            foreach (var loc in mainBlock.Locals)
+            /*foreach (var loc in mainBlock.Locals)
             {
                 writeOpCode(ILOpCodes.NEWLOC, getTypeString(loc.Var.type));
-            }
+            }*/
 
             for (int tokCounter = 0; tokCounter < mainBlock.Inner.Count; ++tokCounter)
             {
@@ -295,10 +309,10 @@ namespace Translator
                 }
             }
 
-            foreach (var loc in mainBlock.Locals)
+            /*foreach (var loc in mainBlock.Locals)
             {
                 writeOpCode(ILOpCodes.FREELOC, loc.LocalIndex);
-            }
+            }*/
 
         }
 
@@ -518,13 +532,13 @@ namespace Translator
                 case "^":
                     return ILOpCodes.XOR;
                 case ">":
-                    return ILOpCodes.OR;
+                    return ILOpCodes.GT;
                 case ">=":
-                    return ILOpCodes.BOR;
+                    return ILOpCodes.GTE;
                 case "<=":
-                    return ILOpCodes.BAND;
+                    return ILOpCodes.LTE;
                 case "<":
-                    return ILOpCodes.XOR;
+                    return ILOpCodes.LT;
                 case "#~":
                 case "#!":
                     return ILOpCodes.NOT;
@@ -570,7 +584,7 @@ namespace Translator
             }
         }
 
-        string getTypeString(DataTypes type)
+        public static string getTypeString(DataTypes type)
         {
             switch (type)
             {

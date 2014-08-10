@@ -575,14 +575,16 @@ namespace Translator
                 else if (infix.ToString() == ")")
                 {
                     var pop = stack.Pop();
-                    while (pop.Type != TokType.OpenBrc && stack.Count != 0)
+                    while (pop.Type != TokType.OpenBrc)
                     {
+                        if(stack.Count == 0)
+                            throw new CompilerException(ExceptionType.BadExpression, "Bad expression: " + str, null);
                         polish.Add(pop);
                         pop = stack.Pop();
                     }
-                    if (stack.Count == 0)
-                        throw new CompilerException(ExceptionType.BadExpression, "Bad expression: " + str, null);
-                    else if (stack.Peek().Type == TokType.Function)
+                    //if (stack.Count == 0)
+
+                    if (stack.Count != 0 && stack.Peek().Type == TokType.Function)
                         polish.Add(stack.Pop());
                     isUnary = false;
                 }
@@ -976,6 +978,12 @@ namespace Translator
 
         Token convert(ref BasicPrimitive conv, Token from, DataTypes to, bool check=false)
         {
+            //TEST:
+            if (from.DType == to)
+            {
+                Console.WriteLine("DEBUG: type '" + from.DType.ToString() + "' == '" + to.ToString()+"'");
+                return from;
+            }
 
             if (check)
             {
@@ -1630,7 +1638,7 @@ namespace Translator
             currentFun.cycleStack.Push(new Tuple<string, string>(for_in, for_out));
 
             ++for_label_counter;
-            evalLabel(for_out + ": ;", forBlock);
+            evalLabel(for_in + ": ;", forBlock);
 
             string cond = "";
             while (toks.Next() != ";" && toks.Type != TokenType.Separator)

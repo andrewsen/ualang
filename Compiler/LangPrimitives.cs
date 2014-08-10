@@ -319,7 +319,7 @@ namespace CompilerClasses
             int pos = 0;
             foreach (var a in argTypes)
             {
-                res += a.type.ToString().ToLower();
+                res += Translator.ILCompiler.getTypeString(a.type);
                 pos = res.Length;
                 res += ", ";
             }
