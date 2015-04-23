@@ -1,4 +1,6 @@
 TEMPLATE = subdirs
 
 SUBDIRS += \
-    uasm
+    uvm \
+    uasm \
+    udasm

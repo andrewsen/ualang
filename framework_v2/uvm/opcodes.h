@@ -1,0 +1,1 @@
+/home/senko/qt/ualang/framework_v2/uasm/opcodes.h

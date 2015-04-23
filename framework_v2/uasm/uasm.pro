@@ -2,18 +2,18 @@ TEMPLATE = app
 CONFIG += console
 CONFIG -= app_bundle
 CONFIG -= qt
-
 QMAKE_CXXFLAGS += -std=c++11
 
-SOURCES += \
+SOURCES += main.cpp \
     assembler.cpp \
-    main.cpp \
-    module.cpp
+    module.cpp \
+    importedmodule.cpp
 
 HEADERS += \
     assembler.h \
-    common.h \
-    OpCodes.h \
     module.h \
-    token.h
+    common.h \
+    opcodes.h \
+    token.h \
+    importedmodule.h
 

@@ -1,105 +1,261 @@
 #ifndef TOKEN_H
 #define TOKEN_H
-
+#include <string>
+#include <cstring>
+#include <iostream>
 #include "common.h"
+using namespace std;
 
-class Token {
-    string str, current;
-    string::iterator idx, prevIdx;
+#define ICUR (inc(cur_pos))
+//#define ICUR (inc(temp_pos))
+
+class Token
+{
+    static const int EOL_REACHED = 0;
+    static const int UNKNOWN_ESCAPE = 1;
+    bool firstTime = true;
+    string src, last, cur;
+    uint cur_pos, last_pos; //I wanted to use string::iterator but it was a bug
+                            //that was modifing all iterators after adding *cur_pos to result string after some chars
+
 public:
-    enum TokType {STRING, DELIM, KEYWORD, NUMBER, IDENT, EOS};
+    enum TokenType {
+        String, Digit, Delim, Bool, Identifier, EOL, UNKNOWN
+    };
 
-    Token(string src) : str(src) {
-        Next();
-        idx = str.begin();
-        prevIdx = idx;
+    Token(string src) {
+        this->src = src + " ";
+
+        cur_pos = 0;
+
+        last = cur = Next();
+        last_pos = 0;
+    }
+    
+    bool operator ==(string str) {
+        return this->ToString() == str;
+    }
+    
+    bool operator !=(string str) {
+        return this->ToString() != str;
+    }
+    
+    Token& operator>>(string& str) {
+        str = this->Next();
+        return *this;
+    }
+    
+    string PushBack() {
+        cur_pos = last_pos;
+        cur = last;
+        return cur;
     }
 
-    TokType Type () {
-        return type;
+    string ToString() {
+        return cur;
+    }
+
+    string Last() {
+        return last;
     }
 
     string Next() {
+        string res = "";
         try {
-            prevIdx = idx;
-            current = nextInternal();
-            return current;
+            last_pos = cur_pos;
+            last = cur;
+            res = cur = next();
+        } catch (int ex) {
+            switch(ex) {
+            case EOL_REACHED:
+                type = EOL;
+                res = "";
+                break;
+            case UNKNOWN_ESCAPE:
+                type = UNKNOWN;
+                res = "";
+                break;
+            }
         }
-        catch(...) {
-            type = EOS;
-            return "";
+        firstTime = false;
+        return res;
+    }
+
+    string NextWhileNot(char ch, bool skip=false) {
+        string res = "";
+        try {
+            last_pos = cur_pos;
+            last = cur;
+            while(src[cur_pos] != ch  && cur_pos != src.length()) {
+                res += src[cur_pos];
+                ICUR;
+            }
+            if(skip) ICUR;
+            cur = res;
+        } catch (int ex) {
+            if(ex == EOL_REACHED) {
+                type = EOL;
+                res = "";
+            }
         }
+        return res;
     }
 
-    string Tail() {
-        string result = "";
-        auto i = idx;
-        for(; i != str.end(); ++i) {
-            result += *i;
-        }
-
-        return result;
+    Token &NextToken() {
+        this->Next();
+        return *this;
     }
 
-    string PushBack() {
-        idx = prevIdx;
-        return current;
-    }
-
-    string Current() {
-        return current;
-    }
-
-    operator string() {
-        return current;
+    TokenType Type() {
+        return type;
     }
 
 private:
-    TokType type;
+    TokenType type;
 
-    string nextInternal() {
+    string next() {
+        //auto temp_pos = cur_pos;
+        //const auto temp_last = last_pos;
         string result = "";
+        bool isCyr = false;
 
-        while(strchr("\r\n\t ", *idx)) ++idx;
-
-        if(isalpha(*idx)) {
-            result += *idx;
-            while(isalpha(*(++idx)) || (*idx >= '0' && *idx <= '9') || *idx == '@' || *idx == '_')
-                result += *idx;
-            type = IDENT;
+        if(src[cur_pos] == '/' && src[cur_pos + 1] == '/') {
+            ICUR;
+            ICUR;
+            while(src[cur_pos] != '\n') ICUR;
         }
-        else if(*idx >= '0' && *idx <= '9') {
-            result += *idx;
+
+        while(strchr(" \t\r\n", src[cur_pos])) ICUR;
+
+        //cout << src[cur_pos] << endl;
+        if(firstTime && src[cur_pos] == '.') {
+            result += src[cur_pos];
+            ICUR;
+            while(isalpha(src[cur_pos]) || isdigit(src[cur_pos]) || src[cur_pos] == '-') {
+                result += src[cur_pos];
+                ICUR;
+            }
+        }
+        else if(isalpha(src[cur_pos]) || src[cur_pos] == '_' || (isCyr = isCyrillicAlpha())) {
+            result += src[cur_pos];
+            if(isCyr)
+            {
+                ICUR;
+                result += src[cur_pos];
+            }
+            ICUR;
+            while(isalpha(src[cur_pos]) || isdigit(src[cur_pos])
+                  || (strchr("_@$", src[cur_pos]) != NULL) || (isCyr = isCyrillicAlpha())) {
+                if(src[cur_pos] == '\0') break;
+                result.push_back(src[cur_pos]);
+                if(isCyr)
+                {
+                    ICUR;
+                    result.push_back(src[cur_pos]);
+                }
+                ICUR;
+            }
+            if(result == "true" || result == "false")
+                type = Bool;
+            else
+                type = Identifier;
+        }
+        else if(isdigit(src[cur_pos])) {
+            type = Digit;
+            result += src[cur_pos];
+            ICUR;
+
             bool hasDot = false;
-            while ((*(++idx) >= '0' && *idx <= '9') ||
-                   [&](){
-                   if(!hasDot && *idx == '"')
+            while ([&](){
+                   if(src[cur_pos] == '.' && !hasDot) {
+                        hasDot = true;
                         return true;
-                   hasDot = true;
+                   }
+                   else if(isdigit(src[cur_pos])) return true;
                    return false;
-                }())
-                result += *idx;
-            type = NUMBER;
+                }()) {
+                result += src[cur_pos];
+                ICUR;
+            }
         }
-        else if(*idx == '-' && *(idx + 1) == '>') {
-            idx += 2;
-            type = DELIM;
+        else if(src[cur_pos] == '"') {
+            type = String;
+            ICUR;
+            while(src[cur_pos] != '"') {
+                if(src[cur_pos] == '\\') {
+                    ICUR;
+                    switch (src[cur_pos]) {
+                        case '\\':
+                            result += '\\';
+                            break;
+                        case 'a':
+                            result += '\a';
+                            break;
+                        case 'b':
+                            result += '\b';
+                            break;
+                        case 'v':
+                            result += '\v';
+                            break;
+                        case 'n':
+                            result += '\n';
+                            break;
+                        case 'r':
+                            result += '\r';
+                            break;
+                        case 't':
+                            result += '\t';
+                            break;
+                        case '0':
+                            result += '\0';
+                            break;
+                        default:
+                            throw UNKNOWN_ESCAPE;
+                    }
+                }
+                else result += src[cur_pos];
+                ICUR;
+            }
+            ICUR;
+        }
+        else if(src[cur_pos] == '-' && src[cur_pos + 1] == '>') {
+            ICUR;
+            ICUR;
+            type = Delim;
             result = "->";
         }
-        else if(strchr("[]{}()=-+", *idx)) {
-            result = *idx;
-            ++idx;
-            type = DELIM;
+        else if(strchr(".,+-=(){}[]|\!@#%^*&~`<>:", src[cur_pos])) {
+            result = src[cur_pos];
+            type = Delim;
+            ICUR;
         }
-        else if(*idx == '"') {
-            while(*(++idx) != '"')
-                result += *idx;
-        }
-        else {
-            throw "Unknown operator";
-        }
+        //cur_pos = temp_pos;
+        //last_pos = temp_last;
         return result;
     }
+
+    void inc(uint& iter) {
+        ++iter;
+        if(iter >= src.length()) throw EOL_REACHED;
+    }
+
+    bool isCyrillicAlpha()
+    {
+        //int i = (byte)src[cur_pos];
+        //cout << i;
+        if((byte)src[cur_pos] != 208 && (byte)src[cur_pos] != 209)
+            return false;
+        byte ch = (byte)src[cur_pos + 1];
+        if(ch >= (byte)'а' && ch <= (byte)'п')
+            return true;
+        if(ch >= (byte)'р' && ch <= (byte)'я')
+            return true;
+        if(ch >= (byte)'А' && ch <= (byte)'Я')
+            return true;
+        return false;
+    }
 };
+
+#undef ICUR
 
 #endif // TOKEN_H
