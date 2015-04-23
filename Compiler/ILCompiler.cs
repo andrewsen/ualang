@@ -32,6 +32,8 @@ namespace Translator
 {
     enum ILOpCodes : byte
     {
+        INV,
+
         TOP,
         NOP,
         BAND,
@@ -148,12 +150,27 @@ namespace Translator
                 if (obj is Import)
                 {
                     sw.WriteLine(".import " + (obj as Import).Module);
+                    sw.WriteLine("");
                 }
             }
-            
-            sw.WriteLine("");
+
             sw.WriteLine(".module " + module);
             sw.WriteLine("");
+
+            sw.WriteLine(".define(\"locale\", \"" + CommandArgs.lang.ToString() + "\")");
+            sw.WriteLine(".define(\"source\", \"" + CommandArgs.source + "\")");
+            
+            if (CommandArgs.noInternal)
+            {
+                sw.WriteLine(".define(\"internal-api\", \"disabled\")");
+            }
+            sw.WriteLine("");
+            if (CommandArgs.lib)
+            {
+                sw.WriteLine(".library");
+                sw.WriteLine("");
+            }
+            //sw.WriteLine("");
         }
 
         public void Compile()
@@ -200,6 +217,12 @@ namespace Translator
                 }
                 sw.WriteLine("{");
 
+                if (f.mainBlock.Inner.Count != 0 && !(f.mainBlock.Inner.Last() is Return))
+                {
+                    var ret = new Return();
+                    ret.noData = true;
+                    f.mainBlock.Inner.Add(ret);
+                }
                 writeBlock(f.mainBlock, sw);
                 sw.WriteLine("}");
             }
@@ -245,6 +268,11 @@ namespace Translator
                         not = true;
                         --counter;
                     }
+                    else if (lastOp.Polish[lastOp.mainOpIdx].StringRep == "!=")
+                    {
+                        lastOp.Polish[lastOp.mainOpIdx].StringRep = "==";
+                        not = true;
+                    }
                     for (int i = 0; i < counter; ++i)
                         writeExpr(_if.Cond.Inner[i] as BasicPrimitive);
                     if (not)
@@ -287,7 +315,7 @@ namespace Translator
                 else if (obj is Return)
                 {
                     Return r = obj as Return;
-                    if (currentFun.type != DataTypes.Void)
+                    if (currentFun.type != DataTypes.Void && !r.noData)
                     {
                         var val = r.Statement.Polish[0];
                         writeVal(val);
@@ -323,7 +351,7 @@ namespace Translator
             {
                 var lval = bp.Polish[0];
                 var rval = bp.Polish[2];
-                if (lval.Type != TokType.Variable)
+                if (lval.Type != TokType.Variable && lval.Type != TokType.TempVar)
                     throw new CompilerException(ExceptionType.lValueExpected, "lvalue expected", null);
 
                 if (rval.Type == TokType.Variable)
@@ -361,7 +389,7 @@ namespace Translator
                 else if (lval.StringRep.StartsWith(VarType.ARG_PREFIX))
                     writeShortcut(VarType.GetVarID(lval.StringRep), ILOpCodes.STARG);
                     //writeOpCode(ILOpCodes.STARG, VarType.GetVarID(lval.StringRep));
-                else
+                else if (lval.StringRep.StartsWith(VarType.LOCAL_PREFIX))
                     writeShortcut(VarType.GetVarID(lval.StringRep), ILOpCodes.STLOC);
                     //writeOpCode(ILOpCodes.STLOC, VarType.GetVarID(lval.StringRep));
             }
@@ -526,9 +554,9 @@ namespace Translator
                 case "&&":
                     return ILOpCodes.AND;
                 case "|":
-                    return ILOpCodes.BOR;
+                    return ILOpCodes.OR;
                 case "&":
-                    return ILOpCodes.BAND;
+                    return ILOpCodes.AND;
                 case "^":
                     return ILOpCodes.XOR;
                 case ">":
@@ -540,6 +568,7 @@ namespace Translator
                 case "<":
                     return ILOpCodes.LT;
                 case "#~":
+                    return ILOpCodes.INV;
                 case "#!":
                     return ILOpCodes.NOT;
                 case "#+":

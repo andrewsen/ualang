@@ -28,7 +28,7 @@ using System.IO;
 
 namespace Translator
 {
-    enum TokenType { Identifier, Keyword, Delimiter, OperatorEq, Operator, String, Digit, Unknown, Char, EOF, Endl, Separator, Boolean }
+    enum TokenType { Identifier, Keyword, Delimiter, OperatorAssign, Operator, String, Digit, Unknown, Char, EOF, Endl, Separator, Boolean }
 
     class TokenStream
     {
@@ -136,7 +136,9 @@ namespace Translator
 
         private bool isIdent(char ch)
         {
-            if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch == '_')) return true;
+            if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= 'а' && ch <= 'я') 
+                || (ch >= 'А' && ch <= 'Я') || (ch == '_') || (ch == 'і') || (ch == 'І') || (ch == 'ї') || (ch == 'Ї')
+                || (ch == 'ґ') || (ch == 'Ґ') || (ch == 'є') || (ch == 'Є')) return true;
             else if(ch >= '0' && ch <= '9') return true;
             else return false;
         }
@@ -183,7 +185,6 @@ namespace Translator
 			if (ch == '/' && code[pos + 1] == '*')
 			{
 				++pos;
-				//Console.WriteLine("Comment!");
 				while (pos < code.Length - 1)
 				{
 					codeLine += code[pos];
@@ -204,7 +205,9 @@ namespace Translator
                 type = TokenType.Endl;
                 return toks;
             }
-            if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch == '_'))
+            if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= 'а' && ch <= 'я') 
+                || (ch >= 'А' && ch <= 'Я') || (ch == '_') || (ch == 'і') || (ch == 'І') || (ch == 'ї') || (ch == 'Ї')
+                || (ch == 'ґ') || (ch == 'Ґ') || (ch == 'є') || (ch == 'Є'))
             {
                 toks += ch;
                 while (isIdent(code[++pos]) || (code[pos] == '@') && pos != 0 && isIdent(code[pos-1]))
@@ -256,7 +259,7 @@ namespace Translator
                 if (code[pos] == '=')
                 {
                     toks += ch + "" + code[pos];
-                    type = TokenType.OperatorEq;
+                    type = TokenType.OperatorAssign;
                     ++pos;
                 }
                 else if (temp == "||" || temp == "&&" || temp == "++" || temp == "--")

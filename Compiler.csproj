@@ -40,15 +40,19 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="Gnu.Getopt">
+      <HintPath>..\..\gnu.getopt.net-0.9.1\Gnu.Getopt\bin\Release\Gnu.Getopt.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Compiler\Token.cs" />
     <Compile Include="Compiler\Properties\AssemblyInfo.cs" />
     <Compile Include="Compiler\Compiler.cs" />
-    <Compile Include="Compiler\CompilerException.cs" />
     <Compile Include="Compiler\ILCompiler.cs" />
     <Compile Include="Compiler\LangPrimitives.cs" />
     <Compile Include="Compiler\Program.cs" />
+    <Compile Include="Compiler\Module.cs" />
+    <Compile Include="Compiler\Exceptions.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Compiler\App.config" />

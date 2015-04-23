@@ -27,6 +27,7 @@ using System.Text;
 using System.Xml;
 using CompilerClasses;
 using Language;
+using Compiler;
 
 namespace Translator
 {
@@ -37,16 +38,16 @@ namespace Translator
 
         List<object> dirs = new List<object>();
 
+        internal List<Function> funcs = new List<Function>();
+        internal List<Module> imported = new List<Module>();
+
         TokenStream tokens;
-        List<Function> funcs = new List<Function>();
-        List<Function> imported = new List<Function>();
         CodeBlock globalVars = new CodeBlock();
         OpPriority priorities = new OpPriority();
-        //ArrayList imports = new ArrayList();
         Function currentFun = null;
         int brace_counter = 0, for_label_counter = 0, while_label_counter = 0, do_while_label_counter = 0, if_label_counter = 0;
         bool isPublic = false, isNative = false;
-        string _in;
+        string[] _in;
         string _out;
 
         public static Compiler GetTestClass()
@@ -54,19 +55,25 @@ namespace Translator
             return new Compiler();
         }
 
-        private Compiler() // Demo
+        public Compiler() // Demo
         {
             funcs.Add(new Function("fun", DataTypes.Null));
             funcs.Add(new Function("funA", DataTypes.Null));
             funcs.Add(new Function("funB", DataTypes.Null));
             funcs.Add(new Function("exp", DataTypes.Null));
             funcs.Add(new Function("func", DataTypes.Null));
+
         }
 
-        public Compiler(string _in, string _out)
+        public Compiler(string[] _in, string _out)
         {
-            imported.Add(new Function("::vm.internal", "print", DataTypes.Void, new List<VarType> {new VarType(DataTypes.String)}));
-            imported.Add(new Function("::vm.internal", "read", DataTypes.String, new List<VarType> {}));
+            imported.Add(Module.CreateVmInternal());
+            /*imported.Add(new Function("::vm.internal", "print", DataTypes.Void, new List<VarType> {new VarType(DataTypes.String)}));
+            imported.Add(new Function("::vm.internal", "print", DataTypes.Void, new List<VarType> {new VarType(DataTypes.Int)}));
+            imported.Add(new Function("::vm.internal", "print", DataTypes.Void, new List<VarType> {new VarType(DataTypes.Double)}));
+            imported.Add(new Function("::vm.internal", "reads", DataTypes.String, new List<VarType> {}));
+            imported.Add(new Function("::vm.internal", "readi", DataTypes.Int, new List<VarType> {}));
+            imported.Add(new Function("::vm.internal", "readd", DataTypes.Double, new List<VarType> {}));*/
             //funcs.Add(new Function("fun", DataTypes.Null));
             //funcs.Add(new Function("exp", DataTypes.Null));
             //funcs.Add(new Function("func", DataTypes.Null));
@@ -84,17 +91,23 @@ namespace Translator
             priorities.Add("*", "/", "%");
             priorities.Add("#!", "#~", "#+", "#-");
             priorities.Add("++", "--", ".");
+            priorities.Add("cast");
             priorities.Add("");
             funcs.Add(new Function("__global_constructor__", DataTypes.Void));
 
             this._in = _in;
             this._out = _out;
-            tokens = new TokenStream(new StreamReader(_in).ReadToEnd());
+            //tokens = new TokenStream(new StreamReader(_in).ReadToEnd());
         }
 
         public void Compile()
         {
-            compileGlobal();
+            foreach (string f in _in)
+            {
+                tokens = new TokenStream(new StreamReader(f).ReadToEnd());
+                CommandArgs.source = f;
+                compileGlobal();
+            }
             //Console.ReadKey();
             foreach (var fun in funcs)
             {
@@ -106,7 +119,7 @@ namespace Translator
 
             //return;
             StreamWriter sw = new StreamWriter(_out+".tac");
-			
+
             sw.WriteLine("globals [");
             for (var i = 0; i < globalVars.Locals.Count; ++i)
             {
@@ -118,9 +131,9 @@ namespace Translator
                 else
                     sw.WriteLine("");
                 //if (g.val != null)
-                //	sw.WriteLine (" = " + g.val.ToString ());
+                //  sw.WriteLine (" = " + g.val.ToString ());
                 //else
-                //	sw.WriteLine ("");
+                //  sw.WriteLine ("");
             }
             sw.WriteLine("]");
             sw.WriteLine("");
@@ -173,11 +186,11 @@ namespace Translator
                     }
                     sw.Write(new String(' ', offset) + "if " + (_if.Cond.Inner.Last() as BasicPrimitive).Expr);
                     sw.WriteLine(" " + _if.Label);
-                    
+
                     //if (_if.Body is CodeBlock)
                     writeBlock(_if.Body as CodeBlock, sw, offset);
                     //else 
-                    //	sw.WriteLine (new String (' ', offset + 4) + (_if.Body as BasicPrimitive).Expr);
+                    //  sw.WriteLine (new String (' ', offset + 4) + (_if.Body as BasicPrimitive).Expr);
                     foreach (If elif in _if.ElseIfs)
                     {
                         for (int i = 0; i < elif.Cond.Inner.Count - 1; ++i)
@@ -188,14 +201,14 @@ namespace Translator
                         //if (elif.Body is CodeBlock)
                         writeBlock(elif.Body as CodeBlock, sw, offset);
                         //else 
-                        //	sw.WriteLine (new String (' ', offset + 4) + (elif.Body as BasicPrimitive).Expr);
+                        //  sw.WriteLine (new String (' ', offset + 4) + (elif.Body as BasicPrimitive).Expr);
                     }
                     //if (_if.Else != null) {
-                    //	sw.WriteLine(new String (' ', offset) + "else ");
-                    //	if (_if.Else is CodeBlock)
-                    //		writeBlock (_if.Else as CodeBlock, sw, offset);
-                    //	else 
-                    //		sw.WriteLine (new String (' ', offset + 4) + (_if.Else as BasicPrimitive).Expr);
+                    //  sw.WriteLine(new String (' ', offset) + "else ");
+                    //  if (_if.Else is CodeBlock)
+                    //      writeBlock (_if.Else as CodeBlock, sw, offset);
+                    //  else 
+                    //      sw.WriteLine (new String (' ', offset + 4) + (_if.Else as BasicPrimitive).Expr);
                     //}
                 }
                 else if (obj is Goto)
@@ -220,7 +233,7 @@ namespace Translator
                 else if (obj is Return)
                 {
                     Return r = obj as Return;
-                    sw.WriteLine(new String(' ', offset) + "return " + r.Statement.Expr);
+                    sw.WriteLine(new String(' ', offset) + "return " + (r.noData ? "" : r.Statement.Expr));
                 }
                 else if (obj is For)
                 {
@@ -246,68 +259,135 @@ namespace Translator
             {
                 tokens.Next();
 
-                switch (tokens.ToString())
+                if(CommandArgs.lang == SyntaxLang.English)
+                    switch (tokens.ToString())
                 {
                     case "public":
-                        if (isPublic)
-                            throw new CompilerException(ExceptionType.ExcessToken, "Excess modifier 'public'", tokens);
-                        isPublic = true;
-                        break;
+                    if (isPublic)
+                        throw new CompilerException(ExceptionType.ExcessToken, "Excess modifier 'public'", tokens);
+                    isPublic = true;
+                    break;
                     case "private":
-                        isPublic = false;
-                        break;
+                    isPublic = false;
+                    break;
                     case "native":
-                        if (isNative)
-                            throw new CompilerException(ExceptionType.ExcessToken, "Excess modifier 'native'", tokens);
-                        isNative = true;
-                        break;
+                    if (isNative)
+                        throw new CompilerException(ExceptionType.ExcessToken, "Excess modifier 'native'", tokens);
+                    isNative = true;
+                    break;
                     /*case "struct":
-                        evalStruct();
-                        break;
-                    case "@":
-                        evalAtributte();
-                        break;*/
+                            evalStruct();
+                            break;
+                        case "@":
+                            evalAtributte();
+                            break;*/
                     case "import":
-                        evalImport();
-                        break;
+                    evalImport();
+                    break;
                     case "void":
-                        evalDeclaration(DataTypes.Void);
-                        break;
+                    evalDeclaration(DataTypes.Void);
+                    break;
                     case "byte":
-                        evalDeclaration(DataTypes.Byte);
-                        break;
+                    evalDeclaration(DataTypes.Byte);
+                    break;
                     case "short":
-                        evalDeclaration(DataTypes.Short);
-                        break;
+                    evalDeclaration(DataTypes.Short);
+                    break;
                     case "int":
-                        evalDeclaration(DataTypes.Int);
-                        break;
+                    evalDeclaration(DataTypes.Int);
+                    break;
                     case "uint":
-                        evalDeclaration(DataTypes.Uint);
-                        break;
+                    evalDeclaration(DataTypes.Uint);
+                    break;
                     case "long":
-                        evalDeclaration(DataTypes.Long);
-                        break;
+                    evalDeclaration(DataTypes.Long);
+                    break;
                     case "ulong":
-                        evalDeclaration(DataTypes.Ulong);
-                        break;
+                    evalDeclaration(DataTypes.Ulong);
+                    break;
                     case "double":
-                        evalDeclaration(DataTypes.Double);
-                        break;
+                    evalDeclaration(DataTypes.Double);
+                    break;
                     case "bool":
-                        evalDeclaration(DataTypes.Bool);
-                        break;
+                    evalDeclaration(DataTypes.Bool);
+                    break;
                     case "string":
-                        evalDeclaration(DataTypes.String);
-                        break;
+                    evalDeclaration(DataTypes.String);
+                    break;
                     default:
-                        if (tokens.Type == TokenType.Identifier)
-                            evalDeclaration(DataTypes.User, tokens.ToString());
-                        break;
+                    if (tokens.Type == TokenType.Identifier)
+                        evalDeclaration(DataTypes.User, tokens.ToString());
+                    break;
                 }
+                else 
+                    switch (tokens.ToString())
+                {
+                    case "публічна":
+                    case "публічний":
+                    if (isPublic)
+                        throw new CompilerException(ExceptionType.ExcessToken, "Excess modifier 'public'", tokens);
+                    isPublic = true;
+                    break;
+                    case "приватна":
+                    case "приватний":
+                    isPublic = false;
+                    break;
+                    case "нативна":
+                    case "нативний":
+                    if (isNative)
+                        throw new CompilerException(ExceptionType.ExcessToken, "Excess modifier 'native'", tokens);
+                    isNative = true;
+                    break;
+                    /*case "struct":
+                            evalStruct();
+                            break;
+                        case "@":
+                            evalAtributte();
+                            break;*/
+                    case "імпорт":
+                    evalImport();
+                    break;
+                    case "воід":
+                    evalDeclaration(DataTypes.Void);
+                    break;
+                    case "байт":
+                    evalDeclaration(DataTypes.Byte);
+                    break;
+                    case "коротке":
+                    evalDeclaration(DataTypes.Short);
+                    break;
+                    case "зціле":
+                    evalDeclaration(DataTypes.Int);
+                    break;
+                    case "ціле":
+                    evalDeclaration(DataTypes.Uint);
+                    break;
+                    case "здовге":
+                    evalDeclaration(DataTypes.Long);
+                    break;
+                    case "довге":
+                    evalDeclaration(DataTypes.Ulong);
+                    break;
+                    case "подвійне":
+                    evalDeclaration(DataTypes.Double);
+                    break;
+                    case "буль":
+                    evalDeclaration(DataTypes.Bool);
+                    break;
+                    case "рядок":
+                    evalDeclaration(DataTypes.String);
+                    break;
+                    default:
+                    if (tokens.Type == TokenType.Identifier)
+                        evalDeclaration(DataTypes.User, tokens.ToString());
+                    break;
+                }
+
             }
-            
+
+            funcs[0].body += localize("return") + ";\n";
             funcs[0].body += "}";
+
         }
 
         internal CodeBlock compileBlock(TokenStream toks, CodeBlock parent, bool isCurrent=false)
@@ -339,48 +419,93 @@ namespace Translator
                     toks.Next();
                     continue;
                 }
-                switch (toks.ToString())
+                if (CommandArgs.lang == SyntaxLang.English)
+                    switch (toks.ToString())
                 {
                     case "break":
-                        evalBreak(toks, blk);
-                        break;
+                    evalBreak(toks, blk);
+                    break;
                     case "continue":
-                        evalContinue(toks, blk);
-                        break;
+                    evalContinue(toks, blk);
+                    break;
                     case "for":
-                        evalFor(toks, blk);
-                        break;
+                    evalFor(toks, blk);
+                    break;
                     case "if":
-                        evalIf(toks, blk);
-                        break;
+                    evalIf(toks, blk);
+                    break;
                     case "while":
-                        evalWhile(toks, blk);
-                        break;
+                    evalWhile(toks, blk);
+                    break;
                     case "return":
-                        evalReturn(toks, blk);
-                        break;
+                    evalReturn(toks, blk);
+                    break;
                     case "goto":
-                        evalGoto(toks, blk);
-                        break;
+                    evalGoto(toks, blk);
+                    break;
                     case "do":
-                        evalDoWhile(toks, blk);
-                        break;
+                    evalDoWhile(toks, blk);
+                    break;
                     case "{":
-                        toks.PushBack();
-                        blk.Inner.Add(evalBlock(toks, blk));
-                        toks.Next();
-                        break;
+                    toks.PushBack();
+                    blk.Inner.Add(evalBlock(toks, blk));
+                    toks.Next();
+                    break;
                     case "}":
-                        return blk;
+                    return blk;
                     default:
-                        if (isType(toks.ToString()))
-                        {
-                            //toks.PushBack();
-                            evalLocalVar(toks.ToString(), toks, blk);
-                        }
-                        else
-                            evalExpr(toks, blk);
-                        break;
+                    if (isType(toks.ToString()))
+                    {
+                        //toks.PushBack();
+                        evalLocalVar(toks.ToString(), toks, blk);
+                    }
+                    else
+                        evalExpr(toks, blk);
+                    break;
+                }
+                else 
+                    switch (toks.ToString())
+                {
+                    case "зупинити":
+                    evalBreak(toks, blk);
+                    break;
+                    case "продовжити":
+                    evalContinue(toks, blk);
+                    break;
+                    case "для":
+                    evalFor(toks, blk);
+                    break;
+                    case "якщо":
+                    evalIf(toks, blk);
+                    break;
+                    case "поки":
+                    evalWhile(toks, blk);
+                    break;
+                    case "повернути":
+                    evalReturn(toks, blk);
+                    break;
+                    case "перейти":
+                    evalGoto(toks, blk);
+                    break;
+                    case "робти":
+                    evalDoWhile(toks, blk);
+                    break;
+                    case "{":
+                    toks.PushBack();
+                    blk.Inner.Add(evalBlock(toks, blk));
+                    toks.Next();
+                    break;
+                    case "}":
+                    return blk;
+                    default:
+                    if (isType(toks.ToString()))
+                    {
+                        //toks.PushBack();
+                        evalLocalVar(toks.ToString(), toks, blk);
+                    }
+                    else
+                        evalExpr(toks, blk);
+                    break;
                 }
             }
             return null;
@@ -425,10 +550,10 @@ namespace Translator
             TokenStream infix = new TokenStream(ref str);
 
             var polish = new List<Token>();
-            
+
             infix.Next();
 
-            bool isUnary = true, isFun = false;
+            bool isUnary = true, isBracket = false;
             int fcount = 0;
             while (infix.Type != TokenType.EOF)
             {
@@ -440,13 +565,28 @@ namespace Translator
                         polish.Add(new Token(infix.ToString(), TokType.Int, DataTypes.Int));
                     isUnary = false;
                 }
+                else if(isBracket && isType(infix.ToString()))
+                {
+                    stack.Pop();
+                    var type = infix.ToString();
+                    if (infix.Next() != ")")
+                        throw new CompilerException(ExceptionType.Brace, ") expected", infix);
+
+                    while (stack.Count != 0 && checkTopOp("cast", stack.Peek(), isUnary))
+                    {
+                        polish.Add(stack.Pop());
+                    }
+                    stack.Push(new Token (type, TokType.OperatorCast));
+                    isUnary = true;
+
+                }
                 else if (infix.Type == TokenType.Identifier)
                 {
                     bool isf = false;
                     //Function func = null;
-                    if (funcs.Any(f => f.name == infix.ToString()) || imported.Any(f => f.name == infix.ToString()))
+                    if (funcs.Any(f => f.name == infix.ToString()) || imported.Any(m => m.functions.Any(f => f.name == infix.ToString())))
                     {
-                        isf = isFun = true;
+                        isf = true;
                         //func = f;
                         ++fcount;
                     }
@@ -523,7 +663,7 @@ namespace Translator
                                     break;
                             }
                             outer:
-                            if (level == -1)
+                                if (level == -1)
                             {
                                 for (int i = 0; i < currentFun.argTypes.Count; ++i)
                                 {
@@ -562,7 +702,9 @@ namespace Translator
                 else if (infix.ToString() == "(")
                 {
                     stack.Push(new Token (infix.ToString(), TokType.OpenBrc));
-                    isUnary = true;
+                    isUnary = isBracket = true;
+                    infix.Next();
+                    continue;
                 }
                 else if (infix.ToString() == ",")
                 {
@@ -588,7 +730,7 @@ namespace Translator
                         polish.Add(stack.Pop());
                     isUnary = false;
                 }
-                else if (infix.Type == TokenType.Operator || infix.Type == TokenType.OperatorEq)
+                else if (infix.Type == TokenType.Operator || infix.Type == TokenType.OperatorAssign)
                 {
                     while (stack.Count != 0 && checkTopOp(infix.ToString(), stack.Peek(), isUnary))
                     {
@@ -610,6 +752,7 @@ namespace Translator
                     polish.Add(new Token (infix.ToString(), TokType.String, DataTypes.String));
                     isUnary = false;
                 }
+                isBracket = false;
                 infix.Next();
             }
 
@@ -618,12 +761,517 @@ namespace Translator
 
             string res = polish.Aggregate("", (current, p) => current + (p.StringRep + " "));
             var bp = new BasicPrimitive(new DataType(DataTypes.Void), res.Trim(), polish);
-            var tac = evalTAC(bp);
+            //return bp;
+            var tac = CommandArgs.newTac ? evalTACNew(bp) : evalTAC(bp);
             for (int i = 0; i < tac.Count-1; ++i)
             {
                 blk.Inner.Add(tac[i]);
             }
             return tac.Last();
+        }
+
+        List<BasicPrimitive> evalTACNew(BasicPrimitive bp)
+        {
+            List<BasicPrimitive> tac = new List<BasicPrimitive>();
+
+            if (bp.Polish.Count == 1 && bp.Polish[0].Type != TokType.TempVar && bp.Polish[0].Type != TokType.Function)
+            {
+                var tbp = new BasicPrimitive();
+                tbp.Polish.Add(bp.Polish[0]);
+                tbp.Expr = bp.Polish[0].StringRep;
+                tbp.mainOpIdx = 0;
+                tac.Add(tbp);
+                return tac;
+            }
+
+            var rpn = bp.Polish;
+            //int start_count = rpn.Count;
+
+            Stack<Token> ts = new Stack<Token>();
+            //int idx = 0;
+            while (rpn.Count > 0)
+            {
+                bool isop = false;
+                var token = rpn.First();
+
+                if (new TokType [] { TokType.Operator, TokType.OperatorAssign, TokType.Function, TokType.OperatorCast }.Contains(token.Type))
+                {
+                    isop = true;
+                    var op = token.StringRep;
+
+                    if (op.StartsWith("#") || op == "++" || op == "--")
+                        tacEvalUnaryOp(token, ts, tac);
+                    else if (new string [] { "==", "!=", "<", "<=", ">=", ">" }.Contains(op))
+                        tacEvalCmpOp(token, ts, tac);
+                    else if (op == "||" || op == "&&")
+                        tacEvalLogicOp(token, ts, tac);
+                    else if (new string[] { "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|=" }.Contains(op))
+                        tacEvalShortAssign(token, ts, tac);
+                    else if(op == "=")
+                        tacEvalAssignOp(token, ts, tac);
+                    else if(token.Type == TokType.OperatorCast)
+                        tacEvalCast(token, ts, tac);
+                    else if (token.Type == TokType.Function)
+                        tacEvalFun(token, ts, tac, rpn);
+                    else
+                        tacEvalArithmOp(token, ts, tac);
+                    //rpn.RemoveAt(0);
+                }
+                else
+                {
+                    BasicPrimitive tbp = new BasicPrimitive();
+                    var tmp = new Token("t" + currentFun.tempVarCounter, TokType.TempVar, token.DType);
+                    tmp.TempRef = token;
+
+                    tbp.Expr = tmp.StringRep + " = " + token.StringRep;
+                    tbp.Polish.Add(tmp);
+                    tbp.Polish.Add(new Token("=", TokType.OperatorAssign));
+                    tbp.Polish.Add(token);
+                    tbp.mainOpIdx = 1;
+
+                    ++currentFun.tempVarCounter;
+
+                    tac.Add(tbp);
+
+                    ts.Push(tmp);
+                    rpn.RemoveAt(0);
+                }
+
+                if (isop)
+                {
+                    rpn.Remove(token);
+                }
+            }
+
+            //if(start_count != 1)
+            if (ts.Count != 0)
+            {
+                var tbp = new BasicPrimitive();
+                var tok = ts.Pop();
+                tbp.Polish.Add(tok);
+                tbp.Expr = tok.StringRep;
+                tbp.mainOpIdx = 0;
+                tac.Add(tbp);
+            }
+            while (ts.Count != 0)
+            {
+                var tok = ts.Pop();
+                foreach (var prim in tac.ToList())
+                {
+                    if (prim.Polish.First().StringRep == tok.StringRep)
+                    {
+                        var lst = from t in tac
+                            where t.Polish.First().StringRep != tok.StringRep && t.Polish.Contains(tok)
+                                select t;
+                        if (lst.ToList().Count == 0)
+                            tac.Remove(prim);
+                    }
+                }
+                return tac.ToList();
+            }
+
+            return tac;
+        }
+
+        void tacEvalUnaryOp(Token tok, Stack<Token> ts, List<BasicPrimitive> tac)
+        {
+            var op = tok.StringRep;
+            var taccode = new BasicPrimitive();
+            Token tmp;
+            var arg = ts.Pop();
+            if (op == "#!")
+            {
+                tmp = new Token ("t"+currentFun.tempVarCounter, TokType.TempVar, DataTypes.Bool);
+                ts.Push(tmp);
+                taccode.Polish.Add(tmp);
+                taccode.Polish.Add(new Token ("=", TokType.OperatorAssign));
+                taccode.Polish.Add(new Token(op, TokType.OperatorMono));
+                taccode.mainOpIdx = 2;
+
+
+                if (getVarType(arg) == DataTypes.Bool)
+                {
+                    taccode.Expr = tmp.StringRep + " = " + op + " " + arg.StringRep;
+                    //taccode.Type = DataTypes.Bool;
+                    taccode.Polish.Add(arg);
+                    ++currentFun.tempVarCounter;
+                }
+                else
+                {
+                    var conv = new BasicPrimitive();
+                    var temp = convert(ref conv, arg, DataTypes.Bool);
+                    tac.Add(conv);
+                    taccode.Polish.Add(temp);
+                    taccode.Expr = tmp.StringRep + " = " + op + " " + temp.StringRep;
+                    //rpn[i - 1] = temp;
+                }
+                tac.Add(taccode);
+            }
+            else
+            {
+                if (!isNumeric(getVarType(arg)))
+                    throw new CompilerException(ExceptionType.NonNumericValue, "Numeric value expected!", null);
+
+                tmp = new Token ("t"+currentFun.tempVarCounter, TokType.TempVar, getVarType(arg));
+                ts.Push(arg);
+                ts.Push(tmp);
+                taccode.Expr = tmp.StringRep + " = " + op + " " + arg.StringRep;
+                //taccode.Type = getVarType(rpn[i - 1]);
+                taccode.Polish.Add(tmp);
+                taccode.Polish.Add(new Token ("=", TokType.OperatorAssign));
+                taccode.Polish.Add(new Token (op, TokType.OperatorMono));
+                taccode.Polish.Add(arg);
+                taccode.mainOpIdx = 2;
+                ++currentFun.tempVarCounter;
+
+                tac.Add(taccode);
+                tacEvalAssignOp(tok, ts, tac);
+            }
+        }
+
+        void tacEvalCmpOp(Token tok, Stack<Token> ts, List<BasicPrimitive> tac)
+        {
+            var res = new Token("t" + currentFun.tempVarCounter, TokType.TempVar, DataTypes.Bool);
+
+            var op = tok.StringRep;
+            var taccode = new BasicPrimitive();
+
+            taccode.Polish.Add(res);
+            taccode.Polish.Add(new Token("=", TokType.OperatorAssign));
+            taccode.Expr = "t" + currentFun.tempVarCounter + " = ";
+            ++currentFun.tempVarCounter;
+            var t2 = ts.Pop();
+            var t1 = ts.Pop();
+            if (t1.DType == DataTypes.Void || t2.DType == DataTypes.Void)
+                throw new CompilerException(ExceptionType.IllegalType, "Illegal type: " + t1.DType.ToString() + " or " + t2.DType.ToString(), null);
+
+            var conv = new BasicPrimitive();
+            if (op == "==" || op == "!=")
+            {
+                if (t1.DType != t2.DType)
+                {
+                    //var conv = new BasicPrimitive();
+                    if (t1.DType > t2.DType) //TEST
+                    {
+                        t2 = convert(ref conv, t2, t1.DType);
+                        //rpn[i - 2] = t2;
+                    }
+                    else
+                    {
+                        t1 = convert(ref conv, t1, t2.DType);
+                        //rpn[i - 1] = t1;
+                    }
+                    tac.Add(conv);
+                }
+
+            }
+            else if (!isNumeric(t1.DType) || !isNumeric(t2.DType))            
+                throw new CompilerException(ExceptionType.IllegalType, "Illegal type: " + t1.DType.ToString() + " or " + t2.DType.ToString(), null);
+            else if (t1.DType > t2.DType)
+            {
+                t2 = convert(ref conv, t2, t1.DType);
+                //rpn[i - 2] = t2;
+                tac.Add(conv);
+            }
+            else if (t1.DType < t2.DType)
+            {
+                t1 = convert(ref conv, t1, t2.DType);
+                //rpn[i - 1] = t1;
+                tac.Add(conv);
+            }
+            taccode.Polish.Add(t2);
+            taccode.Polish.Add(new Token(op, TokType.Operator));
+            taccode.Polish.Add(t1);
+            taccode.mainOpIdx = 3;
+            taccode.Expr += t2.StringRep + " " + op + " " + t1.StringRep;
+            ts.Push(res);
+            tac.Add(taccode);
+            //rpn[i - 2] = res;
+            //rpn.RemoveRange(i - 1, 2);
+        }
+
+        void tacEvalLogicOp(Token tok, Stack<Token> ts, List<BasicPrimitive> tac)
+        {
+            var res = new Token("t" + currentFun.tempVarCounter, TokType.TempVar, DataTypes.Bool);
+
+            var op = tok.StringRep;
+            var taccode = new BasicPrimitive();
+
+            taccode.Polish.Add(res);
+            taccode.Polish.Add(new Token("=", TokType.OperatorAssign));
+            taccode.Expr = "t" + currentFun.tempVarCounter + " = ";
+            ++currentFun.tempVarCounter;
+
+            var t2 = ts.Pop();
+            var t1 = ts.Pop();
+
+            if (isNumeric(getVarType(t2)))
+            {
+                var conv = new BasicPrimitive();
+                var temp = convert(ref conv, t2, DataTypes.Bool);
+                tac.Add(conv);
+                taccode.Polish.Add(temp);
+                taccode.Expr += temp.StringRep;
+                //rpn[i - 2] = temp;
+                //taccode.Expr += temp.StringRep;
+            }
+            else if (getVarType(t2) == DataTypes.Bool)
+            {
+                taccode.Polish.Add(t2);
+                taccode.Expr += t2.StringRep;
+            }
+            else
+                throw new CompilerException(ExceptionType.IllegalType, "Illegal type: " + t2.DType.ToString(), null);
+            taccode.Polish.Add(new Token(op, TokType.Operator));
+            taccode.Expr += " " + op + " ";
+            if (isNumeric(getVarType(t1)))
+            {
+                var conv = new BasicPrimitive();
+                var tmp = convert(ref conv, t1, DataTypes.Bool);
+                tac.Add(conv);
+                taccode.Polish.Add(tmp);
+                taccode.Expr += tmp.StringRep;
+                //rpn[i - 1] = tmp;
+                //taccode.Expr += tmp.StringRep;
+            }
+            else if (getVarType(t1) == DataTypes.Bool)
+            {
+                taccode.Polish.Add(t1);
+                taccode.Expr += t1.StringRep;
+            }
+            else
+                throw new CompilerException(ExceptionType.IllegalType, "Illegal type: " + t1.DType.ToString(), null);
+            //rpn[i - 2] = res;
+            //rpn.RemoveRange(i - 1, 2);
+            taccode.mainOpIdx = 3;
+            ts.Push(res);
+            tac.Add(taccode);
+        }
+
+        void tacEvalAssignOp(Token tok, Stack<Token> ts, List<BasicPrimitive> tac)
+        {   
+            var taccode = new BasicPrimitive();
+
+            Token t1 = ts.Pop(), t2 = ts.Pop();
+            if (t2.TempRef.Type == TokType.Variable)
+            {
+                //tt = t2;
+                ts.Push(t2);
+                t2 = t2.TempRef;
+            }
+            uint dt1 = (uint)t1.DType, dt2 = (uint)t2.DType;
+
+            //dt1 = 3 - dt2 = 3;
+
+            if (dt1 != dt2 && canCastType(t1.DType, t2.DType))
+            {
+                var conv = new BasicPrimitive();
+                t1 = convert(ref conv, t1, t2.DType);
+                //t1 = t1;
+                tac.Add(conv);
+            }
+            else if (dt1 != dt2)
+                throw new CompilerException(ExceptionType.IllegalType, "Illegal type: " + t1.DType.ToString() + " or " + t2.DType.ToString(), null);
+
+            taccode.Expr = t2.StringRep + " = " + t1.StringRep;
+            taccode.Polish.Add(t2);
+            taccode.Polish.Add(new Token("=", TokType.OperatorAssign));
+            taccode.Polish.Add(t1);
+            taccode.mainOpIdx = 1;
+            //if(tt != null)
+            //    t2 = tt;
+            ts.Push(t2);
+            tac.Add(taccode);
+        }
+
+        void tacEvalShortAssign(Token tok, Stack<Token> ts, List<BasicPrimitive> tac)
+        {   
+            //t1 += t2
+            //t3 = t1 + t2
+            //t2 = t3
+            //var op = tok.StringRep;
+            var taccode = new BasicPrimitive();
+
+            Token t1 = ts.Pop(), t2 = ts.Pop();
+            uint dt1 = (uint)t1.DType, dt2 = (uint)t2.DType;
+
+            //dt1 = 3 - dt2 = 3;
+
+            if (dt1 != dt2 && canCastType(t1.DType, t2.DType))
+            {
+                var conv = new BasicPrimitive();
+                t1 = convert(ref conv, t1, t2.DType);
+                //t1 = t1;
+                tac.Add(conv);
+            }
+            else if (dt1 != dt2)
+                throw new CompilerException(ExceptionType.IllegalType, "Illegal type: " + t1.DType.ToString() + " or " + t2.DType.ToString(), null);
+
+            Token newOp = new Token(tok.StringRep.Replace("=", ""), TokType.Operator);
+
+            //t2 += t1;
+            //t3 = t2 + t1;
+            //t2 = t3;
+
+            ts.Push(t2);
+            ts.Push(t1);
+            ts.Push(t2);
+
+            if (new string[] { "+", "-", "*", "/"}.Contains(newOp.StringRep))
+                tacEvalArithmOp(newOp, ts, tac);
+
+            tacEvalAssignOp(null, ts, tac);
+        }
+
+        void tacEvalArithmOp(Token tok, Stack<Token> ts, List<BasicPrimitive> tac)
+        {
+            var op = tok.StringRep;
+            var taccode = new BasicPrimitive();
+
+            Token t2 = ts.Pop(), t1 = ts.Pop();
+
+            if (!isNumeric(getVarType(t1)) || !isNumeric(getVarType(t2))) 
+                throw new CompilerException(ExceptionType.IllegalType, "Illegal type: " + t1.DType.ToString() + " or " + t2.DType.ToString(), null);
+            uint type1 = (uint)t1.DType, type2 = (uint)t2.DType;
+
+            //Token t1 = rpn[i - 1], t2 = rpn[i - 2];
+            if (type1 < type2)
+            {
+                BasicPrimitive conv = new BasicPrimitive();
+                t1 = convert(ref conv, t1, getVarType(t2));
+                //rpn[i - 1] = t1;
+                tac.Add(conv);
+            }
+            else if (type1 > type2)
+            {
+                BasicPrimitive conv = new BasicPrimitive();
+                t2 = convert(ref conv, t2, getVarType(t1));
+                //rpn[i - 2] = t2;
+                tac.Add(conv);
+            }
+
+            var res = new Token("t" + currentFun.tempVarCounter, TokType.TempVar, t1.DType);
+
+            taccode.Polish.Add(res);
+            taccode.Polish.Add(new Token("=", TokType.OperatorAssign));
+            taccode.Expr = "t" + currentFun.tempVarCounter + " = ";
+            taccode.Polish.Add(t2);
+            taccode.Polish.Add(new Token(op, TokType.Operator));
+            taccode.Polish.Add(t1);
+            taccode.mainOpIdx = 3;
+            taccode.Expr += t2.StringRep;
+            taccode.Expr += " " + op + " ";
+            taccode.Expr += t1.StringRep;
+
+            ts.Push(res);
+
+            tac.Add(taccode);
+
+            ++currentFun.tempVarCounter;
+        }
+
+        void tacEvalCast(Token tok, Stack<Token> ts, List<BasicPrimitive> tac)
+        {
+            var t1 = ts.Pop();           
+            if (getVarType(tok.StringRep) == t1.DType)
+            {
+                ts.Push(t1);
+                return;
+            }
+            BasicPrimitive conv = new BasicPrimitive();
+            t1 = convert(ref conv, t1, getVarType(tok.StringRep), true);
+            ts.Push(t1);
+            tac.Add(conv);
+        }
+
+        void tacEvalFun(Token tok, Stack<Token> ts, List<BasicPrimitive> tac, List<Token> rpn)
+        {
+            var op = tok.StringRep;
+            var taccode = new BasicPrimitive();
+
+            var scount = op.Remove(0, op.LastIndexOf("@") + 1);
+            int count = int.Parse(scount);
+
+            //count += 5;
+            List<DataTypes> argTypes = new List<DataTypes>();
+
+            for (int t = count; t > 0; --t)
+            {
+                argTypes.Add(getVarType(ts.ElementAt(ts.Count - t)));
+            }
+
+            Function f = getFunctionByArgList(op.Remove(op.LastIndexOf("@")), argTypes);
+            var funName = f.name;
+            if (f.module != "")
+            {
+                funName = "["+f.module+"] " + f.name;
+            }
+
+            Token retval = null;
+
+            if (f.type != DataTypes.Void && rpn.Count != 1)
+            {
+                retval = new Token("t" + currentFun.tempVarCounter, TokType.TempVar, f.type);
+                ++currentFun.tempVarCounter;
+
+                taccode.Expr = retval.StringRep + " = _@call@_ " + funName + " (";
+                //taccode.Type = retval.Type;
+                taccode.Polish.Add(retval);
+                taccode.Polish.Add(new Token ("=", TokType.OperatorAssign));
+                taccode.mainOpIdx = 2;
+                taccode.Polish.Add(new Token ("_@call@_", TokType.Keyword));
+            }
+            else if (f.type != DataTypes.Void && rpn.Count == 1)
+            {
+                taccode.Expr = "_@call_noreturn@_ " + funName + " (";
+                taccode.mainOpIdx = 0;
+                taccode.Polish.Add(new Token ("_@call_noreturn@_", TokType.Keyword));
+            }
+            else
+            {
+                taccode.Expr = "_@call@_ " + funName + " (";
+                taccode.mainOpIdx = 0;
+                taccode.Polish.Add(new Token ("_@call@_", TokType.Keyword));
+            }
+
+            taccode.Polish.Add(new Token (funName + "("+f.ArgsFromList()+")", TokType.Function));                   
+
+            foreach (var a in f.argTypes)
+            {
+                taccode.Expr += a.type.ToString().ToLower() + ", ";
+            }
+            if (f.argTypes.Count != 0)
+                taccode.Expr = taccode.Expr.Remove(taccode.Expr.Length - ", ".Length);
+            taccode.Expr += ") ";
+            for (int ac = count; ac > 0; --ac)
+            {
+                var arg = ts.ElementAt(ts.Count - ac);
+                if (getVarType(arg) == f.argTypes[ac-1].type)
+                {
+                    taccode.Polish.Add(arg);
+                    taccode.Expr += arg.StringRep + ", ";
+                }
+                else
+                {
+                    var conv = new BasicPrimitive();
+                    var tmp = convert(ref conv, arg, f.argTypes[ac-1].type);
+                    tac.Add(conv);
+                    taccode.Polish.Add(tmp);
+                    taccode.Expr += tmp.StringRep + ", ";
+                    //rpn[t] = tmp;
+                }
+            }
+
+            for (; count > 0; --count)
+                ts.Pop();
+
+            if (f.argTypes.Count != 0)
+                taccode.Expr = taccode.Expr.Remove(taccode.Expr.Length - ", ".Length);
+
+            //rpn.RemoveRange(i - count, count + 1);
+            if (retval != null)
+                ts.Push(retval);
+            tac.Add(taccode);
         }
 
         List<BasicPrimitive> evalTAC(BasicPrimitive bp)
@@ -676,7 +1324,7 @@ namespace Translator
                         taccode.Expr = retval.StringRep + " = _@call@_ " + funName + " (";
                         //taccode.Type = retval.Type;
                         taccode.Polish.Add(retval);
-                        taccode.Polish.Add(new Token ("=", TokType.OperatorEq));
+                        taccode.Polish.Add(new Token ("=", TokType.OperatorAssign));
                         taccode.mainOpIdx = 2;
                         taccode.Polish.Add(new Token ("_@call@_", TokType.Keyword));
                     }
@@ -693,7 +1341,7 @@ namespace Translator
                         taccode.Polish.Add(new Token ("_@call@_", TokType.Keyword));
                     }
                     //taccode.Polish.Add(new Token { StringRep = "_@call@_", Type = TokType.Keyword });
-                    taccode.Polish.Add(new Token (funName + "("+f.ArgsFromList()+")", TokType.Function));					
+                    taccode.Polish.Add(new Token (funName + "("+f.ArgsFromList()+")", TokType.Function));                   
 
                     foreach (var a in f.argTypes)
                     {
@@ -729,12 +1377,12 @@ namespace Translator
 
 
                     /*
-						int var = somefun(10, "hello", 3.14, true);
-						t1 = 10 as double
-						t2 = 3.14 as i32
-						t3 =  _@call@_ somefun(double, string, int, bool) t1, "hello", t2, true 
-						var = t3 as int
-					 */
+                        int var = somefun(10, "hello", 3.14, true);
+                        t1 = 10 as double
+                        t2 = 3.14 as i32
+                        t3 =  _@call@_ somefun(double, string, int, bool) t1, "hello", t2, true 
+                        var = t3 as int
+                     */
 
                 }
                 else if (type == TokType.Operator)
@@ -747,7 +1395,7 @@ namespace Translator
                         {
                             tmp = new Token ("t"+currentFun.tempVarCounter, TokType.TempVar, DataTypes.Bool);
                             taccode.Polish.Add(tmp);
-                            taccode.Polish.Add(new Token ("=", TokType.OperatorEq));
+                            taccode.Polish.Add(new Token ("=", TokType.OperatorAssign));
                             taccode.Polish.Add(new Token(op, TokType.OperatorMono));
                             taccode.mainOpIdx = 2;
                             if (getVarType(rpn[i - 1]) == DataTypes.Bool)
@@ -771,12 +1419,12 @@ namespace Translator
                         {
                             if (!isNumeric(getVarType(rpn[i - 1])))
                                 throw new CompilerException(ExceptionType.NonNumericValue, "Numeric value expected!", null);
-           
+
                             tmp = new Token ("t"+currentFun.tempVarCounter, TokType.TempVar, getVarType(rpn[i - 1]));
                             taccode.Expr = tmp.StringRep + " = " + op + " " + rpn[i - 1].StringRep;
                             //taccode.Type = getVarType(rpn[i - 1]);
                             taccode.Polish.Add(tmp);
-                            taccode.Polish.Add(new Token ("=", TokType.OperatorEq));
+                            taccode.Polish.Add(new Token ("=", TokType.OperatorAssign));
                             taccode.Polish.Add(new Token (op, TokType.OperatorMono));
                             taccode.Polish.Add(rpn[i - 1]);
                             taccode.mainOpIdx = 2;
@@ -790,14 +1438,14 @@ namespace Translator
                     {
                         var res = new Token("t" + currentFun.tempVarCounter, TokType.TempVar, DataTypes.Bool);
                         taccode.Polish.Add(res);
-                        taccode.Polish.Add(new Token("=", TokType.OperatorEq));
+                        taccode.Polish.Add(new Token("=", TokType.OperatorAssign));
                         taccode.Expr = "t" + currentFun.tempVarCounter + " = ";
                         ++currentFun.tempVarCounter;
                         var t1 = rpn[i - 1];
                         var t2 = rpn[i - 2];
                         if (t1.DType == DataTypes.Void || t2.DType == DataTypes.Void)
                             throw new CompilerException(ExceptionType.IllegalType, "Illegal type: " + t1.DType.ToString() + " or " + t2.DType.ToString(), null);
-                        
+
                         var conv = new BasicPrimitive();
                         if (op == "==" || op == "!=")
                         {
@@ -844,7 +1492,7 @@ namespace Translator
                     {
                         var res = new Token("t" + currentFun.tempVarCounter, TokType.TempVar, DataTypes.Bool);
                         taccode.Polish.Add(res);
-                        taccode.Polish.Add(new Token("=", TokType.OperatorEq));
+                        taccode.Polish.Add(new Token("=", TokType.OperatorAssign));
                         taccode.Expr = "t" + currentFun.tempVarCounter + " = ";
                         ++currentFun.tempVarCounter;
                         if (isNumeric(getVarType(rpn[i - 2])))
@@ -891,7 +1539,7 @@ namespace Translator
                     {
                         Token t1 = rpn[i - 1], t2 = rpn[i - 2];
                         uint dt1 = (uint)t1.DType, dt2 = (uint)t2.DType;
-                       
+
                         //dt1 = 3 - dt2 = 3;
 
                         if (dt1 != dt2 && canCastType(t1.DType, t2.DType))
@@ -903,10 +1551,10 @@ namespace Translator
                         }
                         else if (dt1 != dt2)
                             throw new CompilerException(ExceptionType.IllegalType, "Illegal type: " + t1.DType.ToString() + " or " + t2.DType.ToString(), null);
-                        
+
                         taccode.Expr = t2.StringRep + " = " + t1.StringRep;
                         taccode.Polish.Add(t2);
-                        taccode.Polish.Add(new Token("=", TokType.OperatorEq));
+                        taccode.Polish.Add(new Token("=", TokType.OperatorAssign));
                         taccode.Polish.Add(t1);
                         taccode.mainOpIdx = 1;
                         rpn[i] = t2;
@@ -915,7 +1563,6 @@ namespace Translator
                     }
                     else
                     {
-
                         if (!isNumeric(getVarType(rpn[i - 1])) || !isNumeric(getVarType(rpn[i - 2]))) 
                             throw new CompilerException(ExceptionType.IllegalType, "Illegal type: " + rpn[i - 1].DType.ToString() + " or " + rpn[i - 2].DType.ToString(), null);
                         uint type1 = (uint)rpn[i - 1].DType, type2 = (uint)rpn[i - 2].DType;
@@ -935,9 +1582,9 @@ namespace Translator
                             rpn[i - 2] = t2;
                             tac.Add(conv);
                         }
-                        
+
                         taccode.Polish.Add(new Token("t" + currentFun.tempVarCounter, TokType.TempVar, t1.DType));
-                        taccode.Polish.Add(new Token("=", TokType.OperatorEq));
+                        taccode.Polish.Add(new Token("=", TokType.OperatorAssign));
                         taccode.Expr = "t" + currentFun.tempVarCounter + " = ";
                         taccode.Polish.Add(t2);
                         taccode.Polish.Add(new Token(op, TokType.Operator));
@@ -958,13 +1605,13 @@ namespace Translator
                         var assignment = new BasicPrimitive();
                         assignment.Expr = taccode.Polish.Last().StringRep + " = " + taccode.Polish[0].StringRep;
                         assignment.Polish.Add(taccode.Polish.Last());
-                        assignment.Polish.Add(new Token("=", TokType.OperatorEq));
+                        assignment.Polish.Add(new Token("=", TokType.OperatorAssign));
                         assignment.Polish.Add(taccode.Polish[0]);
                         assignment.mainOpIdx = 1;
                         tac.Add(assignment);
                     }
                 }
-                
+
             }
             if (rpn.Count != 0)
             {
@@ -975,13 +1622,13 @@ namespace Translator
             }
             return tac;
         }
-
         Token convert(ref BasicPrimitive conv, Token from, DataTypes to, bool check=false)
         {
+            //Console.WriteLine("DEBUG: converting type '" + from.DType.ToString() + "' to '" + to.ToString()+"'");
             //TEST:
             if (from.DType == to)
             {
-                Console.WriteLine("DEBUG: type '" + from.DType.ToString() + "' == '" + to.ToString()+"'");
+                //Console.WriteLine("DEBUG: type '" + from.DType.ToString() + "' == '" + to.ToString()+"'");
                 return from;
             }
 
@@ -993,7 +1640,7 @@ namespace Translator
             var tmp = new Token ("t"+currentFun.tempVarCounter, TokType.TempVar, to);
             conv.Expr = "t" + currentFun.tempVarCounter + " = " + from.StringRep + " _@as@_ " + to.ToString().ToLower();
             conv.Polish.Add(tmp);
-            conv.Polish.Add(new Token ("=", TokType.OperatorEq));
+            conv.Polish.Add(new Token ("=", TokType.OperatorAssign));
             conv.Polish.Add(from);
             conv.Polish.Add(new Token ("_@as@_", TokType.Operator));
             conv.Polish.Add(new Token (to.ToString().ToLower(), TokType.Keyword, to));
@@ -1015,36 +1662,43 @@ namespace Translator
             switch (tok.Type)
             {
                 case TokType.Variable:
+                {
+                    int id = VarType.GetVarID(tok.StringRep);
+                    if (VarType.GetVarPrefix(tok.StringRep) == VarType.LOCAL_PREFIX)
                     {
-                        int id = VarType.GetVarID(tok.StringRep);
-                        if (VarType.GetVarPrefix(tok.StringRep) == VarType.LOCAL_PREFIX)
-                        {
-                            return currentFun.locals[id].type;
-                        }
-                        else if (VarType.GetVarPrefix(tok.StringRep) == VarType.ARG_PREFIX)
-                        {
-                            return currentFun.argTypes[id].type;
-                        }
-                        else if (VarType.GetVarPrefix(tok.StringRep) == VarType.FIELD_PREFIX)
-                        {
-                            return globalVars.Locals[id].Var.type;
-                        }
-                        break;
+                        return currentFun.locals[id].type;
                     }
-                case TokType.TempVar:
+                    else if (VarType.GetVarPrefix(tok.StringRep) == VarType.ARG_PREFIX)
+                    {
+                        return currentFun.argTypes[id].type;
+                    }
+                    else if (VarType.GetVarPrefix(tok.StringRep) == VarType.FIELD_PREFIX)
+                    {
+                        return globalVars.Locals[id].Var.type;
+                    }
+                    break;
+                }
+                    case TokType.TempVar:
                     return tok.DType;
-                case TokType.Boolean:
+                    case TokType.Boolean:
                     return DataTypes.Bool;
-                case TokType.Double:
+                    case TokType.Double:
                     return DataTypes.Double;
-                case TokType.Int:
+                    case TokType.Int:
                     return DataTypes.Int;
-                case TokType.String:
+                    case TokType.String:
                     return DataTypes.String;
-                default:
+                    default:
                     throw new Exception("Unknown type '" + tok.Type.ToString() + "'");
             }
             return DataTypes.Null;
+        }
+
+        DataTypes getVarType(string str)
+        {
+            var upper = str[0].ToString().ToUpper();
+            var t = upper + str.Remove(0, 1);
+            return (DataTypes)Enum.Parse(typeof(DataTypes), t);
         }
 
         Function getFunctionByArgList(string name, List<DataTypes> argTypes)
@@ -1055,15 +1709,16 @@ namespace Translator
                 if (f.name == name && f.argTypes.Count == argTypes.Count)
                     overloaded.Add(f);
             }
-            foreach (var f in imported)
+            foreach (var m in imported)
             {
-                if (f.name == name && f.argTypes.Count == argTypes.Count)
-                    overloaded.Add(f);
+                foreach(var f in m.functions)
+                    if (f.name == name && f.argTypes.Count == argTypes.Count)
+                        overloaded.Add(f);
             }
             if (overloaded.Count == 1)
                 return overloaded[0];
             bool isEq = true;
-            foreach (var f in overloaded)
+            foreach (var f in overloaded.ToList())
             {
                 var canCast = true;
                 for (int i = 0; i < argTypes.Count; ++i)
@@ -1078,6 +1733,8 @@ namespace Translator
                             break;
                         }
                     }
+                    else
+                        isEq = true;
                 }
                 if (isEq)
                     return f;
@@ -1085,7 +1742,7 @@ namespace Translator
             if (overloaded.Count == 1)
                 return overloaded[0];
             else
-                throw new Exception("Unexpected ambigious overload: " + name);
+                throw new CompilerException(ExceptionType.FunctionRedefinition, "Unexpected ambigious overload: " + name, null);
         }
 
         bool canCastType(DataTypes from, DataTypes to)
@@ -1110,10 +1767,10 @@ namespace Translator
 
             if (p == "=")
                 return priorities.GetPriority(p) < priorities.GetPriority(top.StringRep);
-            if (isUnary)
+            if (isUnary && p != "cast")
                 if (p == "+" || p == "-" || p == "!" || p == "~")
                     return priorities.GetPriority("#" + p) < priorities.GetPriority(top.StringRep);
-                else
+            else
                 throw new CompilerException(ExceptionType.UnknownOp, "Unknown operator " + p, null);
             else if (priorities.GetPriority(p) <= priorities.GetPriority(top.StringRep))
                 return true;
@@ -1128,17 +1785,13 @@ namespace Translator
 
         private CodeBlock evalSingleStatement(TokenStream toks, CodeBlock parent, bool current=false)
         {
-            CodeBlock blk;
-            if (current)
-                blk = parent;
-            else
-                blk = new CodeBlock(parent);
+            CodeBlock blk = current ? parent : new CodeBlock(parent);
             if (toks.Next() == ";" && toks.Type == TokenType.Separator)
             {
                 blk.Inner.Add(null);
                 return blk;
             }
-            switch (toks.ToString())
+            /*switch (toks.ToString())
             {
                 case "break":
                     evalBreak(toks, blk);
@@ -1177,6 +1830,94 @@ namespace Translator
                     else
                         evalExpr(toks, blk);
                     break;
+            }*/
+            if (CommandArgs.lang == SyntaxLang.English)
+                switch (toks.ToString())
+            {
+                case "break":
+                evalBreak(toks, blk);
+                break;
+                case "continue":
+                evalContinue(toks, blk);
+                break;
+                case "for":
+                evalFor(toks, blk);
+                break;
+                case "if":
+                evalIf(toks, blk);
+                break;
+                case "while":
+                evalWhile(toks, blk);
+                break;
+                case "return":
+                evalReturn(toks, blk);
+                break;
+                case "do":                
+                evalDoWhile(toks, blk);
+                break;
+                case "goto":
+                evalGoto(toks, blk);
+                break;
+                case "{":
+                toks.PushBack();
+                evalBlock(toks, blk, true);
+                toks.Next();
+                return blk;
+                case "}":
+                return blk;
+                default:
+                if (isType(toks.ToString()))
+                {
+                    //toks.PushBack();
+                    evalLocalVar(toks.ToString(), toks, blk);
+                }
+                else
+                    evalExpr(toks, blk);
+                break;
+            }
+            else 
+                switch (toks.ToString())
+            {
+                case "зупинити":
+                evalBreak(toks, blk);
+                break;
+                case "продовжити":
+                evalContinue(toks, blk);
+                break;
+                case "для":
+                evalFor(toks, blk);
+                break;
+                case "якщо":
+                evalIf(toks, blk);
+                break;
+                case "поки":
+                evalWhile(toks, blk);
+                break;
+                case "повернути":
+                evalReturn(toks, blk);
+                break;
+                case "перейти":
+                evalGoto(toks, blk);
+                break;
+                case "робти":
+                evalDoWhile(toks, blk);
+                break;
+                case "{":
+                toks.PushBack();
+                evalBlock(toks, blk, true);
+                toks.Next();
+                return blk;
+                case "}":
+                return blk;
+                default:
+                if (isType(toks.ToString()))
+                {
+                    //toks.PushBack();
+                    evalLocalVar(toks.ToString(), toks, blk);
+                }
+                else
+                    evalExpr(toks, blk);
+                break;
             }
             toks.Next();
             return blk;
@@ -1310,7 +2051,7 @@ namespace Translator
             While w = new While(null, null);
             var body = new CodeBlock(parent);
 
-            cond = "if(!(" + cond + ")) { goto " + end_while + " ; }"; 
+            cond = localize("if") + "(!(" + cond + ")) { " + localize("goto") + " " + end_while + " ; }"; 
             w.Body = new CodeBlock(parent);
             evalLabel(begin_while + ": ;", body);
             var condts = new TokenStream(cond);
@@ -1322,7 +2063,7 @@ namespace Translator
             {
                 toks.PushBack();
                 evalBlock(toks, body, true);
-				toks.Next ();
+                toks.Next ();
             }
             else
             {
@@ -1334,10 +2075,10 @@ namespace Translator
                 }
                 evalExpr(str, parent);
             }*/
-            var gts = new TokenStream("goto " + begin_while + ";");
+            var gts = new TokenStream(localize("goto") + " " + begin_while + ";");
             gts.Next();
             evalGoto(gts, body);
-            
+
             evalLabel(end_while + ": ;", body);
             w.Body = body;
             currentFun.cycleStack.Pop();
@@ -1359,11 +2100,11 @@ namespace Translator
             int dw_counter = do_while_label_counter;
             ++do_while_label_counter;
             evalLabel("_do_while_label_" + dw_counter + ": ;", dw_block);
-            currentFun.cycleStack.Push(new Tuple<string, string>("_do_while_label_" + dw_counter, "_do_while_label_out_" + dw_counter));
+            currentFun.cycleStack.Push(new Tuple<string, string>("_do_while_label_cond_" + dw_counter, "_do_while_label_out_" + dw_counter));
             //currentFun.cycleStack.Push("_do_while_label_" + dw_counter );
 
             evalBlock(toks, dw_block, true);
-            if (toks.Next() != "while")
+            if (toks.Next() != localize("while"))
                 throw new CompilerException(ExceptionType.WhileExpected, "'while' expected after 'do' statement", toks);
             if (toks.Next() != "(")
                 throw new CompilerException(ExceptionType.Brace, "'(' expected after 'while' statement", toks);
@@ -1383,22 +2124,23 @@ namespace Translator
             }
             //toks.Next();
             checkEosNext(toks);
-            var ts = new TokenStream("if (" + cond + ") { goto _do_while_label_" + dw_counter + "; }");
+            evalLabel("_do_while_label_cond_" + dw_counter + ": ;", dw_block);
+            var ts = new TokenStream(localize("if") + " (" + cond + ") { " + localize("goto") + " _do_while_label_" + dw_counter + "; }");
             ts.Next();
             evalIf(ts, dw_block);
             evalLabel("_do_while_label_out_" + dw_counter + ": ;", dw_block);
             blk.Inner.Add(dw_block);
             currentFun.cycleStack.Pop();
         }
-        
+
         private void evalBreak(TokenStream toks, CodeBlock parent) {
             checkEosNext(toks);
-            evalGoto("goto " + currentFun.cycleStack.Peek().Item2 + ";", parent);
+            evalGoto(localize("goto") +" " + currentFun.cycleStack.Peek().Item2 + ";", parent);
         }
 
         private void evalContinue(TokenStream toks, CodeBlock parent) {
             checkEosNext(toks);
-            evalGoto("goto " + currentFun.cycleStack.Peek().Item1 + ";", parent);
+            evalGoto(localize("goto") +" " + currentFun.cycleStack.Peek().Item1 + ";", parent);
         }
 
         private void evalReturn(TokenStream toks, CodeBlock parent)
@@ -1411,7 +2153,10 @@ namespace Translator
                 str += toks.ToString() + " ";
             }
 
-            ret.Statement = evalExpr(str, parent);
+            if (str != "")
+                ret.Statement = evalExpr(str, parent);
+            else
+                ret.noData = true;
             parent.Inner.Add(ret);
         }
 
@@ -1455,7 +2200,7 @@ namespace Translator
                 }
                 _if.Body = evalExpr(str, parent);
             }*/
-            if (toks.Next() != "else")
+            if (toks.Next() != localize("else"))
             {
                 toks.PushBack();
                 _if.Label = "_if_out_label_" + if_label_counter;
@@ -1473,22 +2218,22 @@ namespace Translator
             ++if_label_counter;
             if_ptr = parent.Inner.Count - 2;
 
-            if (toks.Next() == "if")
+            if (toks.Next() == localize("if"))
             {
-                evalGoto("goto _if_out_label_" + if_counter + ";", (parent.Inner[if_ptr] as If).Body);
+                evalGoto(localize("goto") + " _if_out_label_" + if_counter + ";", (parent.Inner[if_ptr] as If).Body);
                 containsElseIfs = true;
                 var elif = new If(null, null);
                 do
                 {
                     elif = evalElseIf(toks, parent, (parent.Inner[if_ptr] as If));
-                    evalGoto("goto _if_out_label_" + if_counter + ";", elif.Body);
+                    evalGoto(localize("goto") + " _if_out_label_" + if_counter + ";", elif.Body);
                     elif.Label = "_if_else_label_" + if_label_counter;
                     parent.Inner.Add(elif);
                     evalLabel("_if_else_label_" + if_label_counter + ": ;", parent);
                     ++if_label_counter;
                 } while (checkElseIf(toks));
                 //toks.Next();
-                if (toks.Next() == "else")
+                if (toks.Next() == localize("else"))
                     evalElse((parent.Inner[if_ptr] as If), toks, parent);
                 else
                 {
@@ -1503,7 +2248,7 @@ namespace Translator
                 toks.PushBack();
                 evalElse((parent.Inner[if_ptr] as If), toks, parent);
 
-                evalGoto("goto _if_out_label_" + if_counter + ";", (parent.Inner[if_ptr] as If).Body);
+                evalGoto(localize("goto") + " _if_out_label_" + if_counter + ";", (parent.Inner[if_ptr] as If).Body);
             }
             if ((parent.Inner[if_ptr] as If).Else != null)
                 parent.Inner.Add((parent.Inner[if_ptr] as If).Else);
@@ -1518,12 +2263,12 @@ namespace Translator
         private bool checkElseIf(TokenStream toks)
         {
             int pos = toks.Position;
-            if (toks.Next() != "else")
+            if (toks.Next() != localize("else"))
             {
                 toks.PushBack();
                 return false;
             }
-            if (toks.Next() == "if")
+            if (toks.Next() == localize("if"))
                 return true;
             toks.Position = pos;
             return false;
@@ -1647,7 +2392,7 @@ namespace Translator
             }
             //@for.Cond = evalExpr(cond, forBlock);
 
-            cond = "if(!(" + cond + ")) { goto " + for_out + " ; }";
+            cond = localize("if") + "(!(" + cond + ")) { " + localize("goto") + " " + for_out + " ; }";
             TokenStream condts = new TokenStream(ref cond);
             condts.Next();
             evalIf(condts, forBlock);
@@ -1705,7 +2450,7 @@ namespace Translator
 
             forBlock.Inner.AddRange(counters);
 
-            evalGoto("goto " + for_in + ";", forBlock);
+            evalGoto(localize("goto") + " " + for_in + ";", forBlock);
 
             evalLabel(for_out + ": ;", forBlock);
 
@@ -1738,17 +2483,25 @@ namespace Translator
 
         private void evalImport()
         {
-            tokens.Next();
+            var mod = tokens.Next();
             if (tokens.Type != TokenType.String) throw new CompilerException(ExceptionType.Import, "Import fault: " + tokens.ToString(), tokens);
-            dirs.Add(new Import(tokens.ToString()));
+            if (mod == Module.VM_INTERNAL)
+                return;
+            mod = mod.Replace("\"", "");
+
+            //dirs.Add(new Import(tokens.ToString()));
+            Module im = new Module(this);
+            im.Load(mod);
+            imported.Add(im);
+            //dirs.Add(new Import(mod));
         }
-        
+
         //InDev, will be in next release
         private void evalUsing()
         {
             throw new NotImplementedException();
         }
-        
+
         //InDev, will be in next major release
         private void evalStruct()
         {
@@ -1759,7 +2512,7 @@ namespace Translator
         {
             throw new NotImplementedException();
         }
-        
+
         //InDev, will be in next release
         private void evalAtributte()
         {
@@ -1799,6 +2552,9 @@ namespace Translator
                     break;
             }
 
+            if(funcs.Any(fun => fun == f) || imported.Any(m => m.functions.Any(fun => fun == f)))
+                throw new CompilerException(ExceptionType.FunctionRedefinition, "Function " + f.name + " with args (" + f.ArgsFromList() + ") already defined", tokens);
+
             if (tokens.Next() != "{")
                 throw new CompilerException(ExceptionType.Brace, "'{' expected", tokens);
             int braceCount = 1;
@@ -1837,7 +2593,12 @@ namespace Translator
 
         private DataTypes getPODType(string str)
         {
-            switch (str)
+            string type = unlocalize(str);
+            object ret = Enum.Parse(typeof(DataTypes), type[0].ToString().ToUpper() + type.Remove(0, 1));
+            if (ret == null) 
+                return DataTypes.User;
+            return (DataTypes)ret;
+            /*switch (str)
             {
                 case "bool":
                     return DataTypes.Bool;
@@ -1861,7 +2622,7 @@ namespace Translator
                     return DataTypes.Void;
                 default:
                     return DataTypes.User;
-            }
+            }*/
         }
 
         private void evalGlobalVar(string ident, DataTypes t, string sname)
@@ -1925,22 +2686,22 @@ namespace Translator
                         case DataTypes.Byte:
                             v.val = Byte.Parse(val);
                             break;
-                        case DataTypes.Short:
+                            case DataTypes.Short:
                             v.val = Int16.Parse(val);
                             break;
-                        case DataTypes.Int:
+                            case DataTypes.Int:
                             v.val = Int32.Parse(val);
                             break;
-                        case DataTypes.Double:
+                            case DataTypes.Double:
                             v.val = Double.Parse(val);
                             break;
-                        case DataTypes.Ulong:
+                            case DataTypes.Ulong:
                             v.val = UInt64.Parse(val);
                             break;
-                        case DataTypes.Uint:
+                            case DataTypes.Uint:
                             v.val = UInt32.Parse(val);
                             break;
-                        case DataTypes.Long:
+                            case DataTypes.Long:
                             v.val = Int64.Parse(val);
                             break;
                     }
@@ -1983,7 +2744,8 @@ namespace Translator
 
         private bool isPODType(string str, bool @void = false)
         {
-            switch (str)
+            if (CommandArgs.lang == SyntaxLang.English)
+                switch (str)
             {
                 case "bool":
                 case "byte":
@@ -1994,15 +2756,156 @@ namespace Translator
                 case "ulong":
                 case "string":
                 case "double":
-                    return true;
+                return true;
                 case "void":
-                    if (@void)
-                        return true;
-                    else
-                        return false;
-                default:
+                if (@void)
+                    return true;
+                else
                     return false;
+                default:
+                return false;
             }
+            else
+                switch (str)
+            {
+                case "буль":
+                case "байт":
+                case "зкоротке":
+                case "зціле":
+                case "ціле":
+                case "здовге":
+                case "довге":
+                case "рядок":
+                case "подвійне":
+                return true;
+                case "воід":
+                if (@void)
+                    return true;
+                else
+                    return false;
+                default:
+                return false;
+            }
+        }
+
+        private string unlocalize(string src)
+        {
+            if (CommandArgs.lang == SyntaxLang.English)
+                return src;
+            else if (CommandArgs.lang == SyntaxLang.Ukrainian)
+            {
+                switch (src)
+                {
+                    case "якщо":
+                        return "if";
+                        case "інакше":
+                        return "else";
+                        case "для":
+                        return "for";
+                        case "робити":
+                        return "do";
+                        case "поки":
+                        return "while";
+                        case "повернути":
+                        return "return";
+                        case "зупинити":
+                        return "break";
+                        case "продовжити":
+                        return "continue";
+                        case "перейти":
+                        return "goto";
+                        case "публічний":
+                        case "публічна":
+                        return "public";
+                        case "приватний":
+                        case "приватна":
+                        return "private";
+                        case "імпорт":
+                        return "import";
+                        case "буль":
+                        return "bool";
+                        case "байт":
+                        return "byte";
+                        case "зкоротке":
+                        return "short";
+                        case "зціле":
+                        return "int";
+                        case "ціле":
+                        return "uint";
+                        case "здовге":
+                        return "long";
+                        case "довге":
+                        return "ulong";
+                        case "рядок":
+                        return "string";
+                        case "подвійне":
+                        return "double";
+                        case "воід":
+                        return "void";
+                        default:
+                        break;
+                }
+            }
+            return src;
+        }
+
+        private string localize(string src)
+        {
+            if (CommandArgs.lang == SyntaxLang.English)
+                return src;
+            else if (CommandArgs.lang == SyntaxLang.Ukrainian)
+            {
+                switch (src)
+                {
+                    case "if":
+                        return "якщо";
+                        case "else":
+                        return "інакше";
+                        case "for":
+                        return "для";
+                        case "do":
+                        return "робити";
+                        case "while":
+                        return "поки";
+                        case "return":
+                        return "повернути";
+                        case "break":
+                        return "зупинити";
+                        case "continue":
+                        return "продовжити";
+                        case "goto":
+                        return "перейти";
+                        case "public":
+                        return "публічний";
+                        case "private":
+                        return "приватний";
+                        case "import":
+                        return "імпорт";
+                        case "bool":
+                        return "буль";
+                        case "byte":
+                        return "байт";
+                        case "short":
+                        return "зкоротке";
+                        case "int":
+                        return "зціле";
+                        case "uint":
+                        return "ціле";
+                        case "long":
+                        return "здовге";
+                        case "ulong":
+                        return "довге";
+                        case "string":
+                        return "рядок";
+                        case "double":
+                        return "подвійне";
+                        case "void":
+                        return "воід";
+                        default:
+                        break;
+                }
+            }
+            return src;
         }
     }
 }

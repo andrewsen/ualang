@@ -27,12 +27,17 @@ using System;
 
 namespace Language
 {
-    enum TokType { String, Int, Double, Function, Variable, TempVar, Boolean, Operator, OperatorEq, OperatorMono, OpenBrc, Keyword };
+    enum TokType {
+        OperatorCast,
 
-    struct Token {
+ String, Int, Double, Function, Variable, TempVar, Boolean, Operator, OperatorAssign, OperatorMono, OpenBrc, Keyword };
+
+    class Token {
         public string StringRep;
         public TokType Type;
         public DataTypes DType;
+
+        public Token TempRef;
         
         public Token (string rep, TokType type) {
             StringRep = rep;
@@ -157,6 +162,12 @@ namespace Language
     class Return
     {
         public BasicPrimitive Statement;
+
+        public bool noData
+        {
+            get;
+            set;
+        }
     }
 
     class Goto
@@ -185,9 +196,9 @@ namespace Language
 
 namespace CompilerClasses
 {
-	enum DataTypes : uint
+	enum DataTypes : byte
 	{
-		Null = 0, Void, Bool, String, User, Byte, Short, Int, Uint, Long, Ulong, Double
+		Void, Byte, Short, Uint, Int, Ulong, Long, Bool, Double, String, User, Null
 	}
 
 	class DataType
@@ -282,7 +293,7 @@ namespace CompilerClasses
 		}
 	}
 
-	class Function : VarType
+	internal class Function : VarType
 	{
 		public List<VarType> argTypes;
         public Dictionary<int, VarType> locals;
@@ -345,6 +356,21 @@ namespace CompilerClasses
         public override string ToString()
         {
             return base.name;
+        }
+        
+        public static bool operator==(Function f1, Function f2)
+        {
+            if (f1.name != f2.name || f1.argTypes.Count != f2.argTypes.Count)
+                return false;
+            for (int i = 0; i < f1.argTypes.Count; ++i)            
+                if (f1.argTypes[i].type != f2.argTypes[i].type)
+                    return false;
+            return true;
+        }
+
+        public static bool operator!=(Function f1, Function f2)
+        {
+            return !(f1 == f2);
         }
 	}
 

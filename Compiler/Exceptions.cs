@@ -28,6 +28,8 @@ namespace Translator
 {
     internal enum ExceptionType
     {
+        FunctionRedefinition,
+
         UnknownOp,
 
         BadExpression,
@@ -102,4 +104,39 @@ namespace Translator
         }
 
     }
+    public class ModuleNotFoundException : Exception
+    {
+        string what;
+
+        public ModuleNotFoundException(string mod)
+        {
+            what = "Module " + mod + " wasn't found";
+        }
+
+        public string What
+        {
+            get
+            {
+                return what;
+            }
+        }
+    }  
+
+    public class CorruptedModuleException : Exception
+    {
+        string what;
+
+        public CorruptedModuleException (string mod, string reason)
+        {
+            what = "Module " + mod + " is corupted! " + reason;
+        }
+
+        public string What
+        {
+            get
+            {
+                return what;
+            }
+        }
+    }  
 }
