@@ -28,6 +28,14 @@ namespace Translator
 {
     internal enum ExceptionType
     {
+        DuplicateValue,
+
+        DoubledotExpected, //FIXME: LOOK UP FOR NORMAL ENGLISH TRANSLATION OF `:`
+
+        MetaKeyExists,
+
+        UnknownLocale,
+
         FunctionRedefinition,
 
         UnknownOp,
@@ -113,7 +121,7 @@ namespace Translator
             what = "Module " + mod + " wasn't found";
         }
 
-        public string What
+        public override string Message
         {
             get
             {
@@ -131,7 +139,25 @@ namespace Translator
             what = "Module " + mod + " is corupted! " + reason;
         }
 
-        public string What
+        public override string Message
+        {
+            get
+            {
+                return what;
+            }
+        }
+    }  
+
+    public class AttributeException : Exception
+    {
+        string what;
+
+        public AttributeException (string name, string reason)
+        {
+            what = "Incorrect attribute. Name=" + name + ". " + reason;
+        }
+
+        public override string Message
         {
             get
             {

@@ -120,17 +120,19 @@ namespace Compiler
         internal List<Function> functions;
         private List<ModuleGlobal> globals;
 
+        [Obsolete("Don't use this", true)]
         public static Module CreateVmInternal()
         {
+
             Module im = new Module(null);
-            im.functions = new List<Function>();
+            /*im.functions = new List<Function>();
             im.functions.Add(new Function("::vm.internal", "print", DataTypes.Void, new List<VarType> {new VarType(DataTypes.String)}));
             im.functions.Add(new Function("::vm.internal", "print", DataTypes.Void, new List<VarType> {new VarType(DataTypes.Int)}));
             im.functions.Add(new Function("::vm.internal", "print", DataTypes.Void, new List<VarType> {new VarType(DataTypes.Double)}));
             im.functions.Add(new Function("::vm.internal", "reads", DataTypes.String, new List<VarType> {}));
             im.functions.Add(new Function("::vm.internal", "readi", DataTypes.Int, new List<VarType> {}));
             im.functions.Add(new Function("::vm.internal", "readd", DataTypes.Double, new List<VarType> {}));
-            /*im.functions.Add(new Function("print", CompiledType.VOID, new List<CompiledType> {CompiledType.UTF8}));
+            im.functions.Add(new Function("print", CompiledType.VOID, new List<CompiledType> {CompiledType.UTF8}));
             im.functions.Add(new Function("print", CompiledType.VOID, new List<CompiledType> {CompiledType.I32}));
             im.functions.Add(new Function("print", CompiledType.VOID, new List<CompiledType> {CompiledType.DOUBLE}));
             im.functions.Add(new Function("reads", CompiledType.UTF8, new List<CompiledType> {}));
@@ -178,6 +180,7 @@ namespace Compiler
             }
             if(path == "")                
                 throw new ModuleNotFoundException(path);
+            Console.WriteLine("Module found: " + path);
             
             //Console.WriteLine(File.ReadAllText(path));
             FileStream fs = new FileStream(path, FileMode.Open);
@@ -196,6 +199,7 @@ namespace Compiler
             fs.Seek(4, SeekOrigin.Current); //sizeof(ModuleFlags) TODO: MAY FAIL!!!!!!!!!!!
             readHeaders(fs, BitConverter.ToInt32(headers_end, 0));
             readSegments(fs);
+            fs.Close();
             return this;
         }
 
@@ -235,7 +239,7 @@ namespace Compiler
 
                         while (fs.Position != header.EndPosition)
                         {
-                            Function mf = new Function("", DataTypes.Null);
+                            Function mf = new Function("", new DataType(DataTypes.Null));
                             mf.module = this.name;
                             mf.type = (DataTypes)(byte)fs.ReadByte();
                             char ch = (char)fs.ReadByte();
@@ -253,23 +257,24 @@ namespace Compiler
                             //mf.argTypes
                             mf.isPublic = !fs.ReadBool();
 
-                            if (fs.ReadBool()) //imported
+                            mf.flags = (byte)fs.ReadByte();
+                            if ((mf.flags & Function.F_IMPORTED) != 0) //imported
                             {
                                 string module = fs.ReadCStr();
-                                if (!compiler.imported.Exists(m => m.path == module) && module != VM_INTERNAL)
+                                if (!compiler.imported.Exists(m => m.path == module))
                                 {
                                     Module mod = new Module(compiler);
                                     mod.Load(module);
                                     compiler.imported.Add(mod);
                                 }
                             }
-                            else
+                            else if((mf.flags & Function.F_RTINTERNAL) == 0)
                             {
                                 uint var_count = fs.ReadUInt();
                                 if (var_count > 0)
                                 {
                                     uint vs = fs.ReadUInt();
-                                    fs.Position += vs;
+                                    fs.Position += var_count;
                                 }
                                 uint bs = fs.ReadUInt();
                                 fs.Position += bs;

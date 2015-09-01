@@ -28,14 +28,37 @@ using System;
 namespace Language
 {
     enum TokType {
-        OperatorCast,
+        OperatorNew, 
+        OperatorCast, 
+        String, 
+        Int, 
+        Double, 
+        Function, 
+        Variable, 
+        TempVar, 
+        Boolean, 
+        Operator, 
+        OperatorAssign, 
+        OperatorMono, 
+        OpenBrc, 
+        ArrayElemOp,
+        ArrayElem,
+        Keyword 
+    }
 
- String, Int, Double, Function, Variable, TempVar, Boolean, Operator, OperatorAssign, OperatorMono, OpenBrc, Keyword };
+    class Metadata
+    {
+        public string key;
+        public DataTypes type;
+        public object value;
+    }
 
     class Token {
         public string StringRep;
         public TokType Type;
         public DataTypes DType;
+        public DataTypes BaseArrayType;
+        public int NewArrayDimens = 0;
 
         public Token TempRef;
         
@@ -44,6 +67,7 @@ namespace Language
             Type = type;
             DType = DataTypes.Void;
         }
+
         public Token (string rep, TokType type, DataTypes dt) {
             StringRep = rep;
             Type = type;
@@ -53,18 +77,18 @@ namespace Language
 
     class BasicPrimitive
     {
-        public DataType Type;
+        public DataTypes Type;
         public string Expr;
         public List<Token> Polish;
         public int mainOpIdx;
 
 		public BasicPrimitive() {
-			Type = new DataType(DataTypes.Void);
+			//Type = new DataType(DataTypes.Void);
 			Expr = "";
 			Polish = new List<Token>();
 		}
 
-        public BasicPrimitive(DataType t, string expr, List<Token> lt)
+        public BasicPrimitive(DataTypes t, string expr, List<Token> lt)
         {
             Type = t;
             Expr = expr;
@@ -140,16 +164,19 @@ namespace Language
 
     class Switch
     {
-        public BasicPrimitive Cond;
+        public CodeBlock Cond;
         //public object Default = null;
 
+        public CodeBlock Jumps;
         public CodeBlock Body;
 
         public object Else = null;
 
-        public Switch(BasicPrimitive cond)
+        public Switch(CodeBlock cond, CodeBlock body, CodeBlock jumps)
         {
+            Jumps = jumps;
             Cond = cond;
+            Body = body;
             //Cases = new List<Case>();
         }
     }
@@ -196,21 +223,28 @@ namespace Language
 
 namespace CompilerClasses
 {
-	enum DataTypes : byte
+	public enum DataTypes : byte
 	{
-		Void, Byte, Short, Uint, Int, Ulong, Long, Bool, Double, String, User, Null
+		Void, Byte, Short, Uint, Int, Ulong, Long, Bool, Double, String, User, Array, Null
 	}
 
-	class DataType
+    public class DataType
 	{
-		public DataTypes type;
-		public StructType user;
+		internal DataTypes type;
+        internal DataType nested;
+        internal int arrayDimens;
+        internal StructType user;
 
-		public DataType(DataTypes t, StructType s = null)
+        public DataType(DataTypes t, DataType n = null, int dims = 0)
 		{
 			type = t;
-			user = s;
+            nested = n ?? new DataType();
+            arrayDimens = dims;
 		}
+
+        protected DataType()
+        {
+        }
 	}
 
 	//enum PolishTypes { Digit, Operator, Function, Variable, Equality, OpenBrc, Boolean, String }
@@ -218,8 +252,12 @@ namespace CompilerClasses
 	class VarType : DataType
 	{
 		public string name;
-		public bool isNative;
-		public bool isPublic;
+        public bool isNative;
+        public bool isPublic;
+        public bool inited = false;
+        public bool used = false;
+        //public bool isArray = false;
+        //public int arrayDimens;
 		public dynamic val;
 		
 		public const string LOCAL_PREFIX = "_@local_";
@@ -227,15 +265,26 @@ namespace CompilerClasses
 		public const string ARG_PREFIX = "_@arg_";
         public const string NULL_PREFIX = "__@NULL@__";
 
-        public VarType(string name, DataTypes t, StructType s = null)
-            : base(t, s)
+        public VarType(string name, DataTypes type, int dims = 0, DataType nested = null)
+            : base(type, nested, dims)
         {
             this.name = name;
-            val = null;
+            //val = null;
+            //arrayDimens = dims;
+            //this.isArray = isArray;
+        }
+
+        public VarType(string name, DataType dt)
+        {
+            this.name = name;
+
+            base.arrayDimens = dt.arrayDimens;
+            base.nested = dt.nested;
+            base.type = dt.type;        
         }
 
         public VarType(DataTypes t)
-            : base(t, null)
+            : base(t, null, 0)
         {
             this.name = "";
             val = null;
@@ -294,7 +343,12 @@ namespace CompilerClasses
 	}
 
 	internal class Function : VarType
-	{
+    {
+        public const byte F_RTINTERNAL = 1;
+        public const byte F_IMPORTED = 2;
+        public const byte F_PROTOTYPE = 4;
+
+        public byte flags;
 		public List<VarType> argTypes;
         public Dictionary<int, VarType> locals;
         public string body;
@@ -303,8 +357,8 @@ namespace CompilerClasses
 		public int tempVarCounter = 0;
         public Stack<Tuple<string, string>> cycleStack;
 
-        public Function(string sign, DataTypes t, StructType s = null)
-            : base(sign, t, s)
+        public Function(string sign, DataType t, StructType s = null)
+            : base(sign, t)
         {
             argTypes = new List<VarType>();
             locals = new Dictionary<int, VarType> ();
@@ -312,8 +366,8 @@ namespace CompilerClasses
             cycleStack = new Stack<Tuple<string, string>>();
         }
 
-        public Function(string module, string sign, DataTypes ret, List<VarType> args)
-            : base(sign, ret, null)
+        public Function(string module, string sign, DataType ret, List<VarType> args)
+            : base(sign, ret)
         {
             this.module = module;
             argTypes = args;

@@ -33,13 +33,14 @@ namespace Translator
     class TokenStream
     {
         string codeLine;
-        string code;
+        public string Source;
         int pos, posb;
         string toks = "";
         int line = 1;
         StreamReader reader = null;
         //bool in_string = false;
         bool skipEndl = true, noQuotes = false;
+        TokenType type;
 
         public bool NoQuotes
         {
@@ -67,9 +68,8 @@ namespace Translator
             set { skipEndl = value; }
         }
 
-        TokenType type;
 
-        internal TokenType Type
+        public TokenType Type
         {
             get { return type; }
             private set { type = value; }
@@ -100,7 +100,7 @@ namespace Translator
 
         public TokenStream(ref string str)
         {
-            code = str + " ";
+            Source = str + " ";
             pos = 0;
         }
 
@@ -110,7 +110,7 @@ namespace Translator
 
         public TokenStream(string str)
         {
-            code = str + " ";
+            Source = str + " ";
             pos = 0;
         }
 
@@ -146,17 +146,17 @@ namespace Translator
         private string nextInternal () {
             posb = pos;
 
-            if (pos >= code.Length)
+            if (pos >= Source.Length)
             {
                 type = TokenType.EOF;
                 return null;
             }
-            char ch = code[pos];
+            char ch = Source[pos];
             codeLine += ch;
             if(skipEndl)
                 while (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
                 {
-                    ch = code[++pos];
+                    ch = Source[++pos];
                     codeLine += ch;
                     if (ch != '\n') continue;
                     ++line;
@@ -165,30 +165,30 @@ namespace Translator
             else
                 while (ch == ' ' || ch == '\t')
                 {
-                    ch = code[++pos];
+                    ch = Source[++pos];
                     codeLine += ch;
                 }
 			
 
-			if (ch == '/' && code[pos + 1] == '/')
+			if (ch == '/' && Source[pos + 1] == '/')
 			{
 				codeLine += "//";
 				++pos;
 				//Console.WriteLine("Comment!");
-				while (pos < code.Length - 1)
+				while (pos < Source.Length - 1)
 				{
-					codeLine += code[pos];
-					if (code[++pos] == '\r' || code[pos] == '\n') break;
+					codeLine += Source[pos];
+					if (Source[++pos] == '\r' || Source[pos] == '\n') break;
 				}
 				return nextInternal ();
 			}
-			if (ch == '/' && code[pos + 1] == '*')
+			if (ch == '/' && Source[pos + 1] == '*')
 			{
 				++pos;
-				while (pos < code.Length - 1)
+				while (pos < Source.Length - 1)
 				{
-					codeLine += code[pos];
-					if (code [++pos] == '*' && code [pos + 1] == '/') {
+					codeLine += Source[pos];
+					if (Source [++pos] == '*' && Source [pos + 1] == '/') {
 						pos += 2;
 						break;
 					}
@@ -196,7 +196,7 @@ namespace Translator
 				return nextInternal ();
 			}
 
-            if (!skipEndl && ch == '\n' || (ch == '\r' && code[pos + 1] == '\n'))
+            if (!skipEndl && ch == '\n' || (ch == '\r' && Source[pos + 1] == '\n'))
             {
                 ++line;
                 pos += 2;
@@ -210,8 +210,8 @@ namespace Translator
                 || (ch == 'ґ') || (ch == 'Ґ') || (ch == 'є') || (ch == 'Є'))
             {
                 toks += ch;
-                while (isIdent(code[++pos]) || (code[pos] == '@') && pos != 0 && isIdent(code[pos-1]))
-                    toks += code[pos];
+                while (isIdent(Source[++pos]) || (Source[pos] == '@') && pos != 0 && isIdent(Source[pos-1]))
+                    toks += Source[pos];
                 type = TokenType.Identifier;
                 codeLine += toks;
                 return toks;
@@ -223,9 +223,9 @@ namespace Translator
                 toks += ch;
                 while (true)
                 {
-                    if (code[++pos] >= '0' && code[pos] <= '9')
-                        toks += code[pos];
-                    else if (!dot && code[pos] == '.')
+                    if (Source[++pos] >= '0' && Source[pos] <= '9')
+                        toks += Source[pos];
+                    else if (!dot && Source[pos] == '.')
                     {
                         toks += '.';
                         dot = true;
@@ -255,10 +255,10 @@ namespace Translator
             }
             if("-+*/|~^&%!<>=".IndexOf(ch) != -1) {
                 ++pos;
-                string temp = "" + ch + code[pos];
-                if (code[pos] == '=')
+                string temp = "" + ch + Source[pos];
+                if (Source[pos] == '=')
                 {
-                    toks += ch + "" + code[pos];
+                    toks += ch + "" + Source[pos];
                     type = TokenType.OperatorAssign;
                     ++pos;
                 }
@@ -278,8 +278,8 @@ namespace Translator
             }
             if (ch == '"')
             {
-                while (code[++pos] != '"')
-                    toks += code[pos];
+                while (Source[++pos] != '"')
+                    toks += Source[pos];
                 ++pos;
                 type = TokenType.String;
                 if (!noQuotes) toks = "\"" + toks + "\"";
@@ -288,8 +288,8 @@ namespace Translator
             }
             if (ch == '\'')
             {
-                while (code[++pos] != '\'')
-                    toks += code[pos];
+                while (Source[++pos] != '\'')
+                    toks += Source[pos];
                 ++pos;
                 type = TokenType.Char;
                 codeLine += toks;
@@ -303,7 +303,7 @@ namespace Translator
             return toks;
         }
 
-        public string Source { 
+        /*public string Source { 
             get 
             {
                 return this.code;
@@ -312,7 +312,7 @@ namespace Translator
             {
                 this.code = value;
             }
-        }
+        }*/
     }
 }
 /* 
