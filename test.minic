@@ -1,0 +1,117 @@
+public double global = 0+2;
+string hello;
+
+void testf() {
+	getInt();
+	int x = 55, y = 44;
+	printf("42", 34-getInt() + 45/4-x*y-1, (x*(y/6)+(x+y)-y), x+1, y, y-1, x);
+	if(1 + 2 != 3) {
+		printf("one!");
+	}
+	getInt();
+	if(2 - 3 == 4) {
+		printf("two!!");
+	}
+	else {
+		printf("two-two!!");
+	}
+	getInt();
+	if(3 * 4 != 5) {
+		printf("three!!!");
+	}
+	else if(4 / 5 == 6) {
+		printf("three-three!!!");
+	}
+	getInt();
+	if(5 * 6 != 7) {
+		printf("four!!!!");
+	}
+	else if(6 / 7 == 8) {
+		printf("four-four!!!!");
+	}
+	else {
+		printf("four-four-four!!!!");
+	}
+	getStr();
+}
+
+int main() {
+	int num1 = getInt(), num2 = getInt();
+	string act = "";
+
+	while((act = getStr()) != "q") {
+		if(act == "+") {
+			printf("%d", num1 + num2);
+		}
+		else if(act == "-"){
+			printf("%d", num1 - num2);
+		}
+		else if(act == "*"){
+			printf("%d", num1 * num2);
+		}
+		else if(act == "/"){
+			printf("%d", num1 / num2);
+		}
+		else if(act == "^") {
+			int p = num1;
+			if (num2 == 0) 
+			{
+				num1 = 1;
+			}
+			else {
+				for(int i = 1; i < num2; i++) {
+					num1 = num1 * p;
+					printf("Iteration ", i);
+					continue;
+					break;
+				}
+			}
+			printf("%d", num1);
+		}
+		else {
+			printf("Insert action");
+			break;
+			continue;
+		}
+	}
+}
+
+int getInt() {
+	return 42;
+}
+
+bool test() {
+	if(global == 0) {
+		global = global + -1;
+		return true;
+	}
+	else {
+		global = global - +1;
+		return false;
+	}
+}
+
+int myfunc(int p1, string p2) {
+	return p1*p1-1;
+}
+
+string getStr() {
+	return "+";
+}
+
+void printf(string s) {
+	int i = 0;
+	do {
+		i++;
+		if(0)
+			break;
+		else
+			continue;
+	} while(i < 10);
+}
+void printf(string s, int i1) {
+}
+void printf(string s, int i1, int i2) {
+}
+void printf(string s, int i1, int i2, int i3, int i4, int i5, int i6) {
+}
